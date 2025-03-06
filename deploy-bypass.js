@@ -2,15 +2,17 @@
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
+const helmet = require('helmet');
 
 // Load environment variables
 dotenv.config();
 
 // Initialize express app
 const app = express();
-const port = process.env.PORT || 5000;
+const port = process.env.PORT || 8080;
 
 // Middleware
+app.use(helmet());
 app.use(cors());
 app.use(express.json());
 
@@ -18,13 +20,15 @@ app.use(express.json());
 app.get('/health', (req, res) => {
   res.status(200).json({ 
     status: 'OK', 
-    message: 'Temporary server is running',
+    message: 'API server is running',
     environment: process.env.NODE_ENV || 'development',
     timestamp: new Date().toISOString()
   });
 });
 
-// Simple API routes for testing
+// API Routes
+
+// Shipping
 app.get('/api/shipping/options', (req, res) => {
   const shippingOptions = [
     {
@@ -38,13 +42,129 @@ app.get('/api/shipping/options', (req, res) => {
       name: 'Express Shipping',
       price: 12.99,
       estimatedDays: '1-2 business days'
+    },
+    {
+      id: 'overnight',
+      name: 'Overnight Shipping',
+      price: 19.99,
+      estimatedDays: 'Next business day'
     }
   ];
   
   res.status(200).json(shippingOptions);
 });
 
+app.post('/api/shipping/calculate', (req, res) => {
+  const { address, items, shippingOptionId } = req.body;
+  
+  if (!address || !items || !shippingOptionId) {
+    return res.status(400).json({ message: 'Missing required fields' });
+  }
+  
+  const shippingOptions = {
+    'standard': { price: 5.99, days: '3-5 business days' },
+    'express': { price: 12.99, days: '1-2 business days' },
+    'overnight': { price: 19.99, days: 'Next business day' }
+  };
+  
+  const option = shippingOptions[shippingOptionId];
+  
+  if (!option) {
+    return res.status(404).json({ message: 'Shipping option not found' });
+  }
+  
+  // Calculate shipping cost
+  let cost = option.price;
+  
+  // Add $2 for every 5 items
+  const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
+  if (totalItems > 5) {
+    cost += Math.floor(totalItems / 5) * 2;
+  }
+  
+  res.status(200).json({
+    shippingOption: {
+      id: shippingOptionId,
+      name: shippingOptionId.charAt(0).toUpperCase() + shippingOptionId.slice(1) + ' Shipping',
+      price: option.price,
+      estimatedDays: option.days
+    },
+    totalItems,
+    shippingCost: parseFloat(cost.toFixed(2)),
+    estimatedDelivery: getEstimatedDeliveryDate(option.days)
+  });
+});
+
+// Cart routes
+app.get('/api/cart', (req, res) => {
+  res.status(200).json({
+    items: [
+      {
+        id: 'product-1',
+        name: 'Product 1',
+        price: 19.99,
+        quantity: 2,
+        image: 'https://via.placeholder.com/150'
+      },
+      {
+        id: 'product-2',
+        name: 'Product 2',
+        price: 29.99,
+        quantity: 1,
+        image: 'https://via.placeholder.com/150'
+      }
+    ],
+    subtotal: 69.97,
+    tax: 5.60,
+    total: 75.57
+  });
+});
+
+// Payment routes
+app.get('/api/payment/methods', (req, res) => {
+  res.status(200).json([
+    { id: 'card', name: 'Credit/Debit Card' },
+    { id: 'paypal', name: 'PayPal' }
+  ]);
+});
+
+// Helper function to calculate estimated delivery date
+function getEstimatedDeliveryDate(estimatedDays) {
+  const today = new Date();
+  let daysToAdd = 0;
+  
+  if (estimatedDays.includes('Next business day')) {
+    daysToAdd = 1;
+  } else if (estimatedDays.includes('1-2')) {
+    daysToAdd = 2;
+  } else if (estimatedDays.includes('3-5')) {
+    daysToAdd = 5;
+  } else {
+    daysToAdd = 7;
+  }
+  
+  const futureDate = new Date(today);
+  futureDate.setDate(today.getDate() + daysToAdd);
+  
+  return futureDate.toISOString().split('T')[0];
+}
+
+// Catch-all route
+app.use('*', (req, res) => {
+  res.status(404).json({
+    status: 'error',
+    message: 'Route not found',
+    availableRoutes: [
+      '/health',
+      '/api/shipping/options',
+      '/api/shipping/calculate',
+      '/api/cart',
+      '/api/payment/methods'
+    ]
+  });
+});
+
 // Start server
 app.listen(port, () => {
-  console.log(`Temporary server running on port ${port}`);
+  console.log(`API server running on port ${port}`);
 }); 

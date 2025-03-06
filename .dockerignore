@@ -1,0 +1,8 @@
+node_modules
+npm-debug.log
+src
+dist
+.git
+.github
+*.md
+tsconfig.json 
