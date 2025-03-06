@@ -223,6 +223,52 @@ app.post('/api/webhooks/stripe', express.raw({type: 'application/json'}), (req, 
       case 'payment_intent.succeeded':
         console.log('Payment succeeded!');
         // Process successful payment - update order status, send confirmation email, etc.
+        // In a real implementation, we would extract order details from the payment intent
+        
+        // Mock order data for demonstration
+        const mockOrder = {
+          orderNumber: 'ORD-' + Math.floor(10000 + Math.random() * 90000),
+          items: [
+            {
+              id: 'product-1',
+              name: 'Premium Headphones',
+              price: 199.99,
+              quantity: 1,
+              image: 'https://via.placeholder.com/50'
+            }
+          ],
+          shippingMethod: {
+            id: 'express',
+            name: 'Express Shipping',
+            price: 12.99,
+            estimatedDays: '1-2 business days'
+          },
+          shippingAddress: {
+            firstName: 'Jane',
+            lastName: 'Smith',
+            street: '456 Oak Ave',
+            city: 'Metropolis',
+            state: 'NY',
+            zipCode: '10001',
+            country: 'US'
+          },
+          paymentMethod: 'Credit Card',
+          subtotal: 199.99,
+          tax: 16.80,
+          total: 229.78
+        };
+        
+        // Send order confirmation email asynchronously 
+        // We don't await this to avoid delaying the response to Stripe
+        emailService.sendOrderConfirmation(
+          mockOrder, 
+          process.env.SMTP_USER // In production, this would come from the customer data
+        ).then(result => {
+          console.log('Webhook order confirmation email result:', result);
+        }).catch(err => {
+          console.error('Webhook order email error:', err);
+        });
+        
         break;
       case 'payment_intent.payment_failed':
         console.log('Payment failed!');
@@ -260,6 +306,191 @@ function getEstimatedDeliveryDate(estimatedDays) {
   return futureDate.toISOString().split('T')[0];
 }
 
+// Helper functions for emails
+const emailService = {
+  // Create reusable transporter
+  getTransporter: () => {
+    return nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: parseInt(process.env.SMTP_PORT),
+      secure: false,
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASSWORD
+      }
+    });
+  },
+  
+  // Send order confirmation email
+  sendOrderConfirmation: async (order, customerEmail) => {
+    try {
+      const transporter = emailService.getTransporter();
+      
+      // Format currency
+      const formatCurrency = (amount) => {
+        return `$${parseFloat(amount).toFixed(2)}`;
+      };
+      
+      // Generate items HTML
+      const itemsHtml = order.items.map(item => `
+        <tr>
+          <td style="padding: 10px; border-bottom: 1px solid #eeeeee;">
+            <img src="${item.image}" alt="${item.name}" width="50" style="max-width: 50px; vertical-align: middle;">
+          </td>
+          <td style="padding: 10px; border-bottom: 1px solid #eeeeee;">${item.name}</td>
+          <td style="padding: 10px; border-bottom: 1px solid #eeeeee; text-align: center;">${item.quantity}</td>
+          <td style="padding: 10px; border-bottom: 1px solid #eeeeee; text-align: right;">${formatCurrency(item.price)}</td>
+          <td style="padding: 10px; border-bottom: 1px solid #eeeeee; text-align: right;">${formatCurrency(item.price * item.quantity)}</td>
+        </tr>
+      `).join('');
+      
+      // Email content
+      const mailOptions = {
+        from: process.env.EMAIL_FROM,
+        to: customerEmail,
+        subject: `Order Confirmation #${order.orderNumber}`,
+        text: `Thank you for your order #${order.orderNumber}. Your total is ${formatCurrency(order.total)}. Your order will be shipped to ${order.shippingAddress.street}, ${order.shippingAddress.city}, ${order.shippingAddress.state} ${order.shippingAddress.zipCode}.`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
+            <h2 style="color: #4a67b7; text-align: center; border-bottom: 2px solid #4a67b7; padding-bottom: 10px;">Order Confirmation</h2>
+            
+            <div style="background-color: #f9f9f9; padding: 15px; margin: 20px 0; border-radius: 4px;">
+              <p style="margin: 5px 0;"><strong>Order Number:</strong> #${order.orderNumber}</p>
+              <p style="margin: 5px 0;"><strong>Order Date:</strong> ${new Date().toLocaleDateString()}</p>
+              <p style="margin: 5px 0;"><strong>Shipping Method:</strong> ${order.shippingMethod.name}</p>
+              <p style="margin: 5px 0;"><strong>Payment Method:</strong> ${order.paymentMethod}</p>
+            </div>
+            
+            <h3 style="color: #4a67b7;">Order Items</h3>
+            <table style="width: 100%; border-collapse: collapse;">
+              <thead>
+                <tr style="background-color: #f2f2f2;">
+                  <th style="padding: 10px; text-align: left;">Image</th>
+                  <th style="padding: 10px; text-align: left;">Product</th>
+                  <th style="padding: 10px; text-align: center;">Qty</th>
+                  <th style="padding: 10px; text-align: right;">Price</th>
+                  <th style="padding: 10px; text-align: right;">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${itemsHtml}
+              </tbody>
+            </table>
+            
+            <div style="margin-top: 20px; text-align: right;">
+              <p><strong>Subtotal:</strong> ${formatCurrency(order.subtotal)}</p>
+              <p><strong>Shipping:</strong> ${formatCurrency(order.shippingMethod.price)}</p>
+              <p><strong>Tax:</strong> ${formatCurrency(order.tax)}</p>
+              <p style="font-size: 18px; font-weight: bold; color: #4a67b7;"><strong>Total:</strong> ${formatCurrency(order.total)}</p>
+            </div>
+            
+            <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e0e0e0;">
+              <h3 style="color: #4a67b7;">Shipping Address</h3>
+              <p>
+                ${order.shippingAddress.firstName} ${order.shippingAddress.lastName}<br>
+                ${order.shippingAddress.street}<br>
+                ${order.shippingAddress.city}, ${order.shippingAddress.state} ${order.shippingAddress.zipCode}<br>
+                ${order.shippingAddress.country}
+              </p>
+            </div>
+            
+            <div style="margin-top: 30px; background-color: #f5f5f5; padding: 15px; border-radius: 4px;">
+              <p style="margin: 0;">Your order will be shipped within 1-2 business days. You will receive a shipping confirmation email with tracking information once your order ships.</p>
+            </div>
+            
+            <div style="margin-top: 30px; text-align: center; color: #777; font-size: 12px;">
+              <p>If you have any questions about your order, please contact our customer support team.</p>
+              <p>© ${new Date().getFullYear()} Your E-Commerce Store. All rights reserved.</p>
+            </div>
+          </div>
+        `
+      };
+      
+      // Send the email
+      const info = await transporter.sendMail(mailOptions);
+      console.log('Order confirmation email sent:', info.response);
+      return {
+        success: true,
+        messageId: info.messageId
+      };
+    } catch (error) {
+      console.error('Error sending order confirmation email:', error);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+};
+
+// Add route for order confirmation
+app.post('/api/orders', async (req, res) => {
+  try {
+    // In a real app, this would save the order to the database
+    // For this demo, we'll just use the request body data
+    
+    const order = {
+      orderNumber: 'ORD-' + Math.floor(10000 + Math.random() * 90000),
+      items: req.body.items || [
+        {
+          id: 'product-1',
+          name: 'Modern Desk Lamp',
+          price: 49.99,
+          quantity: 1,
+          image: 'https://via.placeholder.com/50'
+        },
+        {
+          id: 'product-2',
+          name: 'Wireless Earbuds',
+          price: 129.99,
+          quantity: 2,
+          image: 'https://via.placeholder.com/50'
+        }
+      ],
+      shippingMethod: req.body.shippingMethod || {
+        id: 'express',
+        name: 'Express Shipping',
+        price: 12.99,
+        estimatedDays: '1-2 business days'
+      },
+      shippingAddress: req.body.shippingAddress || {
+        firstName: 'John',
+        lastName: 'Doe',
+        street: '123 Main St',
+        city: 'Anytown',
+        state: 'CA',
+        zipCode: '90210',
+        country: 'US'
+      },
+      paymentMethod: req.body.paymentMethod || 'Credit Card',
+      subtotal: req.body.subtotal || 309.97,
+      tax: req.body.tax || 25.83,
+      total: req.body.total || 348.79
+    };
+    
+    // Customer email - use request body or default to SMTP_USER for testing
+    const customerEmail = req.body.email || process.env.SMTP_USER;
+    
+    // Send order confirmation email
+    const emailResult = await emailService.sendOrderConfirmation(order, customerEmail);
+    
+    // Return order with email status
+    res.status(201).json({
+      success: true,
+      message: 'Order created successfully',
+      order,
+      email: emailResult
+    });
+  } catch (error) {
+    console.error('Error creating order:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to create order',
+      error: error.message
+    });
+  }
+});
+
 // Catch-all route
 app.use('*', (req, res) => {
   res.status(404).json({
@@ -272,7 +503,8 @@ app.use('*', (req, res) => {
       '/api/cart',
       '/api/payment/methods',
       '/api/webhooks/stripe',
-      '/api/test-email'
+      '/api/test-email',
+      '/api/orders'
     ]
   });
 });
