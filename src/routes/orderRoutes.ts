@@ -12,4 +12,4 @@ router.get('/:orderId', getOrder);
 // Create a new order
 router.post('/', createOrder);
 
-export const orderRoutes = router; 
+export default router; 

@@ -18,4 +18,4 @@ router.delete('/items/:itemId', removeFromCart);
 // Clear cart
 router.delete('/', clearCart);
 
-export const cartRoutes = router; 
+export default router; 

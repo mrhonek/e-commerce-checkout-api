@@ -12,4 +12,4 @@ router.post('/create-intent', createPaymentIntent);
 // Confirm payment
 router.post('/confirm', confirmPayment);
 
-export const paymentRoutes = router; 
+export default router; 

@@ -2,10 +2,10 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import helmet from 'helmet';
-import { cartRoutes } from './routes/cartRoutes';
-import { shippingRoutes } from './routes/shippingRoutes';
-import { paymentRoutes } from './routes/paymentRoutes';
-import { orderRoutes } from './routes/orderRoutes';
+import cartRoutes from './routes/cartRoutes';
+import shippingRoutes from './routes/shippingRoutes';
+import paymentRoutes from './routes/paymentRoutes';
+import orderRoutes from './routes/orderRoutes';
 import authRoutes from './routes/authRoutes';
 import connectDB from './db/connection';
 
@@ -39,7 +39,7 @@ app.get('/health', (req, res) => {
 });
 
 // Error handling middleware
-app.use((err, req, res, next) => {
+app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error(err.stack);
   res.status(500).json({
     status: 'error',

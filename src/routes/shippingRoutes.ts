@@ -12,4 +12,4 @@ router.post('/calculate', calculateShipping);
 // Validate shipping address
 router.post('/validate-address', validateAddress);
 
-export const shippingRoutes = router; 
+export default router; 
