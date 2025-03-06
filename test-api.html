@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Testing Tool</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .endpoint {
+            margin-bottom: 30px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        h2 {
+            margin-top: 0;
+            color: #333;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        pre {
+            background-color: #f5f5f5;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        textarea {
+            width: 100%;
+            height: 150px;
+            margin-bottom: 10px;
+            font-family: monospace;
+        }
+        .direct-link {
+            display: inline-block;
+            margin-top: 10px;
+            color: #0066cc;
+            text-decoration: none;
+        }
+        .direct-link:hover {
+            text-decoration: underline;
+        }
+        .warning {
+            background-color: #fffacd;
+            padding: 10px;
+            border-left: 4px solid #ffcc00;
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+<body>
+    <h1>E-Commerce API Testing Tool</h1>
+    
+    <div class="warning">
+        <strong>CORS Issues?</strong> If you're experiencing CORS errors, try:
+        <ol>
+            <li>Using the direct links (they open in a new tab)</li>
+            <li>Installing a CORS-bypassing browser extension</li>
+            <li>Using the network tab in browser dev tools to inspect responses</li>
+        </ol>
+    </div>
+    
+    <div class="endpoint">
+        <h2>1. Health Check</h2>
+        <button onclick="testHealth()">Test Health Endpoint</button>
+        <a href="https://e-commerce-checkout-api-production.up.railway.app/health" target="_blank" class="direct-link">Open Directly →</a>
+        <pre id="healthResult">Results will appear here...</pre>
+    </div>
+
+    <div class="endpoint">
+        <h2>2. Shipping Options</h2>
+        <button onclick="testShippingOptions()">Get Shipping Options</button>
+        <a href="https://e-commerce-checkout-api-production.up.railway.app/api/shipping/options" target="_blank" class="direct-link">Open Directly →</a>
+        <pre id="shippingOptionsResult">Results will appear here...</pre>
+    </div>
+
+    <div class="endpoint">
+        <h2>3. Calculate Shipping</h2>
+        <textarea id="shippingCalcPayload">{
+  "address": {
+    "street": "123 Main St",
+    "city": "Anytown",
+    "state": "CA",
+    "zipCode": "90210",
+    "country": "US"
+  },
+  "items": [
+    {"id": "product-1", "quantity": 2, "weight": 0.5},
+    {"id": "product-2", "quantity": 1, "weight": 1.0}
+  ],
+  "shippingOptionId": "express"
+}</textarea>
+        <button onclick="testShippingCalculate()">Calculate Shipping</button>
+        <p><small>Note: POST request, cannot be opened directly in browser</small></p>
+        <pre id="shippingCalcResult">Results will appear here...</pre>
+    </div>
+
+    <div class="endpoint">
+        <h2>4. Cart Contents</h2>
+        <button onclick="testCart()">Get Cart</button>
+        <a href="https://e-commerce-checkout-api-production.up.railway.app/api/cart" target="_blank" class="direct-link">Open Directly →</a>
+        <pre id="cartResult">Results will appear here...</pre>
+    </div>
+
+    <div class="endpoint">
+        <h2>5. Payment Methods</h2>
+        <button onclick="testPaymentMethods()">Get Payment Methods</button>
+        <a href="https://e-commerce-checkout-api-production.up.railway.app/api/payment/methods" target="_blank" class="direct-link">Open Directly →</a>
+        <pre id="paymentMethodsResult">Results will appear here...</pre>
+    </div>
+
+    <div class="endpoint">
+        <h2>6. Create Order</h2>
+        <textarea id="orderPayload">{
+  "items": [
+    {
+      "id": "product-1",
+      "name": "Modern Desk Lamp",
+      "price": 49.99,
+      "quantity": 1,
+      "image": "https://via.placeholder.com/50"
+    },
+    {
+      "id": "product-2",
+      "name": "Wireless Earbuds",
+      "price": 129.99,
+      "quantity": 2,
+      "image": "https://via.placeholder.com/50"
+    }
+  ],
+  "shippingMethod": {
+    "id": "express",
+    "name": "Express Shipping",
+    "price": 12.99,
+    "estimatedDays": "1-2 business days"
+  },
+  "shippingAddress": {
+    "firstName": "John",
+    "lastName": "Doe",
+    "street": "123 Main St",
+    "city": "Anytown",
+    "state": "CA",
+    "zipCode": "90210",
+    "country": "US"
+  },
+  "email": "your-email@example.com"
+}</textarea>
+        <button onclick="testCreateOrder()">Create Order</button>
+        <a href="https://e-commerce-checkout-api-production.up.railway.app/api/orders" target="_blank" class="direct-link">Open Directly (GET) →</a>
+        <pre id="orderResult">Results will appear here...</pre>
+    </div>
+
+    <div class="endpoint">
+        <h2>7. Stripe Webhook</h2>
+        <textarea id="webhookPayload">{
+  "type": "payment_intent.succeeded"
+}</textarea>
+        <button onclick="testStripeWebhook()">Test Webhook</button>
+        <p><small>Note: POST request, cannot be opened directly in browser</small></p>
+        <pre id="webhookResult">Results will appear here...</pre>
+    </div>
+
+    <div class="endpoint">
+        <h2>8. Products List</h2>
+        <button onclick="testProducts()">Get All Products</button>
+        <a href="https://e-commerce-checkout-api-production.up.railway.app/api/products" target="_blank" class="direct-link">Open Directly →</a>
+        <pre id="productsResult">Results will appear here...</pre>
+    </div>
+
+    <div class="endpoint">
+        <h2>9. Single Product</h2>
+        <div style="margin-bottom: 10px;">
+            <label for="productId">Product ID: </label>
+            <select id="productId">
+                <option value="product-1">Product 1 (Desk Lamp)</option>
+                <option value="product-2">Product 2 (Wireless Earbuds)</option>
+                <option value="product-3">Product 3 (Leather Wallet)</option>
+                <option value="product-4">Product 4 (Wireless Charging Pad)</option>
+                <option value="product-5">Product 5 (Smart Water Bottle)</option>
+                <option value="product-6">Product 6 (Premium Notebook)</option>
+            </select>
+        </div>
+        <button onclick="testSingleProduct()">Get Product Details</button>
+        <pre id="singleProductResult">Results will appear here...</pre>
+    </div>
+
+    <script>
+        const API_URL = 'https://e-commerce-checkout-api-production.up.railway.app';
+        // Use a different CORS proxy with better success rate
+        const CORS_PROXY = 'https://api.allorigins.win/get?url=';
+
+        // Helper function to make requests and update the result
+        async function makeRequest(endpoint, method = 'GET', data = null, resultElementId) {
+            const resultElement = document.getElementById(resultElementId);
+            resultElement.textContent = 'Loading...';
+            
+            // For POST requests, we'll recommend using the direct API in Postman
+            if (method === 'POST') {
+                resultElement.textContent = `For testing POST endpoints, we recommend:
+1. Use Postman, Insomnia, or similar API testing tool
+2. Send request to: ${API_URL}${endpoint}
+3. Include the payload as shown in the textarea above
+4. Set Content-Type header to application/json
+
+POST requests from browsers have stricter CORS enforcement.`;
+                return;
+            }
+            
+            // For GET requests, try the reliable proxy method
+            try {
+                // Use AllOrigins proxy which is more reliable for CORS bypassing
+                const targetUrl = encodeURIComponent(`${API_URL}${endpoint}`);
+                const proxyUrl = `${CORS_PROXY}${targetUrl}`;
+                
+                console.log(`Using proxy to access: ${API_URL}${endpoint}`);
+                const response = await fetch(proxyUrl);
+                
+                if (response.ok) {
+                    const proxyResponse = await response.json();
+                    // allorigins returns data in a nested 'contents' property as a string
+                    try {
+                        // Parse the contents which are returned as a string
+                        const responseData = JSON.parse(proxyResponse.contents);
+                        console.log('Response:', responseData);
+                        resultElement.textContent = JSON.stringify(responseData, null, 2);
+                    } catch (parseError) {
+                        // If it's not JSON, just show the raw contents
+                        resultElement.textContent = proxyResponse.contents;
+                    }
+                    return;
+                } else {
+                    throw new Error(`Status: ${response.status}`);
+                }
+            } catch (error) {
+                console.error('API Error:', error);
+                resultElement.textContent = `Error: ${error.message}\n\nFor reliable testing:\n1. Use the direct links (blue links above)\n2. Try an API testing tool like Postman\n3. You can see the direct API responses are working correctly`;
+            }
+        }
+
+        // Test functions for each endpoint
+        function testHealth() {
+            makeRequest('/health', 'GET', null, 'healthResult');
+        }
+        
+        function testShippingOptions() {
+            makeRequest('/api/shipping/options', 'GET', null, 'shippingOptionsResult');
+        }
+        
+        function testShippingCalculate() {
+            const payload = JSON.parse(document.getElementById('shippingCalcPayload').value);
+            makeRequest('/api/shipping/calculate', 'POST', payload, 'shippingCalcResult');
+        }
+        
+        function testCart() {
+            makeRequest('/api/cart', 'GET', null, 'cartResult');
+        }
+        
+        function testPaymentMethods() {
+            makeRequest('/api/payment/methods', 'GET', null, 'paymentMethodsResult');
+        }
+        
+        function testCreateOrder() {
+            const payload = JSON.parse(document.getElementById('orderPayload').value);
+            makeRequest('/api/orders', 'POST', payload, 'orderResult');
+        }
+        
+        function testStripeWebhook() {
+            const payload = JSON.parse(document.getElementById('webhookPayload').value);
+            makeRequest('/api/webhooks/stripe', 'POST', payload, 'webhookResult');
+        }
+
+        function testProducts() {
+            makeRequest('/api/products', 'GET', null, 'productsResult');
+        }
+        
+        function testSingleProduct() {
+            const productId = document.getElementById('productId').value;
+            makeRequest(`/api/products/${productId}`, 'GET', null, 'singleProductResult');
+        }
+    </script>
+</body>
+</html> 
