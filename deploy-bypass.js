@@ -14,7 +14,15 @@ const port = process.env.PORT || 8080;
 // Middleware
 app.use(helmet());
 app.use(cors());
-app.use(express.json());
+
+// Use JSON middleware for all routes except the Stripe webhook
+app.use((req, res, next) => {
+  if (req.originalUrl === '/api/webhooks/stripe') {
+    next();
+  } else {
+    express.json()(req, res, next);
+  }
+});
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -128,6 +136,41 @@ app.get('/api/payment/methods', (req, res) => {
   ]);
 });
 
+// Stripe webhook endpoint
+app.post('/api/webhooks/stripe', express.raw({type: 'application/json'}), (req, res) => {
+  const signature = req.headers['stripe-signature'];
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  
+  try {
+    // In a real implementation, you would verify the signature with Stripe
+    // const event = stripe.webhooks.constructEvent(req.body, signature, webhookSecret);
+    
+    // For now, just log the event type and send a success response
+    console.log('Received Stripe webhook event:', req.body);
+    
+    // Handle specific event types
+    const eventType = req.body.type || 'unknown';
+    
+    switch (eventType) {
+      case 'payment_intent.succeeded':
+        console.log('Payment succeeded!');
+        // Process successful payment - update order status, send confirmation email, etc.
+        break;
+      case 'payment_intent.payment_failed':
+        console.log('Payment failed!');
+        // Handle failed payment
+        break;
+      default:
+        console.log(`Unhandled event type: ${eventType}`);
+    }
+    
+    res.status(200).json({received: true});
+  } catch (err) {
+    console.error(`Webhook error: ${err.message}`);
+    res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+});
+
 // Helper function to calculate estimated delivery date
 function getEstimatedDeliveryDate(estimatedDays) {
   const today = new Date();
@@ -159,7 +202,8 @@ app.use('*', (req, res) => {
       '/api/shipping/options',
       '/api/shipping/calculate',
       '/api/cart',
-      '/api/payment/methods'
+      '/api/payment/methods',
+      '/api/webhooks/stripe'
     ]
   });
 });
