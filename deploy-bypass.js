@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const helmet = require('helmet');
+const nodemailer = require('nodemailer');
 
 // Load environment variables
 dotenv.config();
@@ -136,6 +137,73 @@ app.get('/api/payment/methods', (req, res) => {
   ]);
 });
 
+// Email test endpoint
+app.get('/api/test-email', async (req, res) => {
+  try {
+    // Create email transporter
+    const transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: parseInt(process.env.SMTP_PORT),
+      secure: false, // true for 465, false for other ports
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASSWORD
+      }
+    });
+    
+    // Email content
+    const mailOptions = {
+      from: process.env.EMAIL_FROM,
+      to: process.env.SMTP_USER, // Send to yourself for testing
+      subject: 'Test Email from E-Commerce API',
+      text: 'This is a test email from your e-commerce API. If you received this, your SMTP configuration is working correctly!',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
+          <h2 style="color: #4a67b7;">E-Commerce API Email Test</h2>
+          <p>Hello,</p>
+          <p>This is a test email from your e-commerce API deployed on Railway.</p>
+          <p>If you're receiving this message, your SMTP configuration is working correctly!</p>
+          <div style="background-color: #f5f5f5; padding: 15px; border-left: 4px solid #4a67b7; margin: 20px 0;">
+            <p style="margin: 0;"><strong>Server:</strong> Railway</p>
+            <p style="margin: 10px 0 0;"><strong>Time:</strong> ${new Date().toLocaleString()}</p>
+          </div>
+          <p>You can now use this configuration to send:</p>
+          <ul>
+            <li>Order confirmations</li>
+            <li>Shipping notifications</li>
+            <li>Payment receipts</li>
+            <li>Abandoned cart reminders</li>
+          </ul>
+          <p style="color: #777; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 10px;">
+            This is an automated test email. Please do not reply.
+          </p>
+        </div>
+      `
+    };
+    
+    // Send the email
+    const info = await transporter.sendMail(mailOptions);
+    
+    console.log('Email sent successfully:', info.response);
+    res.status(200).json({ 
+      success: true, 
+      message: 'Test email sent successfully!',
+      details: {
+        messageId: info.messageId,
+        response: info.response
+      }
+    });
+  } catch (error) {
+    console.error('Error sending test email:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to send test email',
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+});
+
 // Stripe webhook endpoint
 app.post('/api/webhooks/stripe', express.raw({type: 'application/json'}), (req, res) => {
   const signature = req.headers['stripe-signature'];
@@ -203,7 +271,8 @@ app.use('*', (req, res) => {
       '/api/shipping/calculate',
       '/api/cart',
       '/api/payment/methods',
-      '/api/webhooks/stripe'
+      '/api/webhooks/stripe',
+      '/api/test-email'
     ]
   });
 });
