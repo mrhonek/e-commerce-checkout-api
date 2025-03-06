@@ -91,7 +91,3 @@ npm run build
 ## Deployment
 
 This API is designed to be deployed on Railway. For deployment instructions, see [Railway documentation](https://docs.railway.app/).
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details. 
