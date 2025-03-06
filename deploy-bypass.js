@@ -527,7 +527,197 @@ app.use('/api/orders', async (req, res) => {
   }
 });
 
-// Catch-all route
+// Products endpoint
+app.get('/api/products', (req, res) => {
+  // Sample product data
+  const products = [
+    {
+      id: "product-1",
+      name: "Modern Desk Lamp",
+      price: 49.99,
+      description: "A sleek, adjustable desk lamp with multiple brightness settings and a USB charging port.",
+      image: "https://picsum.photos/id/1060/400/400",
+      category: "Home Office",
+      featured: true,
+      rating: 4.5,
+      stock: 25
+    },
+    {
+      id: "product-2",
+      name: "Wireless Earbuds",
+      price: 129.99,
+      description: "Premium wireless earbuds with active noise cancellation, waterproof design, and 24-hour battery life.",
+      image: "https://picsum.photos/id/325/400/400",
+      category: "Electronics",
+      featured: true,
+      rating: 4.8,
+      stock: 18
+    },
+    {
+      id: "product-3",
+      name: "Leather Wallet",
+      price: 39.99,
+      description: "Handcrafted genuine leather wallet with RFID protection and multiple card slots.",
+      image: "https://picsum.photos/id/846/400/400",
+      category: "Accessories",
+      featured: false,
+      rating: 4.3,
+      stock: 32
+    },
+    {
+      id: "product-4",
+      name: "Wireless Charging Pad",
+      price: 29.99,
+      description: "Fast-charging wireless pad compatible with all Qi-enabled devices.",
+      image: "https://picsum.photos/id/365/400/400",
+      category: "Electronics",
+      featured: false,
+      rating: 4.1,
+      stock: 15
+    },
+    {
+      id: "product-5",
+      name: "Smart Water Bottle",
+      price: 24.99,
+      description: "Tracks hydration levels and reminds you to drink water throughout the day.",
+      image: "https://picsum.photos/id/425/400/400",
+      category: "Fitness",
+      featured: false,
+      rating: 4.0,
+      stock: 20
+    },
+    {
+      id: "product-6",
+      name: "Premium Notebook",
+      price: 19.99,
+      description: "Hardcover notebook with premium paper, bookmark ribbon, and elastic closure.",
+      image: "https://picsum.photos/id/20/400/400",
+      category: "Stationery",
+      featured: true,
+      rating: 4.6,
+      stock: 40
+    }
+  ];
+  
+  // Simulate a slight delay like a real API
+  setTimeout(() => {
+    res.status(200).json(products);
+  }, 500);
+});
+
+// Get single product by ID
+app.get('/api/products/:id', (req, res) => {
+  const productId = req.params.id;
+  
+  // Sample product data (same as above)
+  const products = [
+    {
+      id: "product-1",
+      name: "Modern Desk Lamp",
+      price: 49.99,
+      description: "A sleek, adjustable desk lamp with multiple brightness settings and a USB charging port.",
+      image: "https://picsum.photos/id/1060/400/400",
+      category: "Home Office",
+      featured: true,
+      rating: 4.5,
+      stock: 25,
+      features: [
+        "Adjustable arm and head for perfect lighting angle",
+        "Touch controls with 3 brightness levels",
+        "Built-in USB charging port",
+        "Energy-efficient LED bulb included",
+        "Sleek, modern design"
+      ],
+      specs: {
+        dimensions: "16\" height x 5\" base diameter",
+        weight: "2.4 lbs",
+        material: "Aluminum and plastic",
+        color: "Matte black",
+        powerSource: "AC adapter (included)"
+      }
+    },
+    {
+      id: "product-2",
+      name: "Wireless Earbuds",
+      price: 129.99,
+      description: "Premium wireless earbuds with active noise cancellation, waterproof design, and 24-hour battery life.",
+      image: "https://picsum.photos/id/325/400/400",
+      category: "Electronics",
+      featured: true,
+      rating: 4.8,
+      stock: 18,
+      features: [
+        "Active noise cancellation technology",
+        "Waterproof (IPX7 rating)",
+        "Up to 8 hours of battery life (24 with charging case)",
+        "Touch controls for music and calls",
+        "Voice assistant compatible"
+      ],
+      specs: {
+        dimensions: "0.8\" x 0.7\" x 0.6\" (each earbud)",
+        weight: "0.2 oz (each earbud), 1.6 oz (charging case)",
+        connectivity: "Bluetooth 5.2",
+        range: "Up to 33 feet",
+        chargingTime: "1.5 hours for full charge"
+      }
+    },
+    {
+      id: "product-3",
+      name: "Leather Wallet",
+      price: 39.99,
+      description: "Handcrafted genuine leather wallet with RFID protection and multiple card slots.",
+      image: "https://picsum.photos/id/846/400/400",
+      category: "Accessories",
+      featured: false,
+      rating: 4.3,
+      stock: 32
+    },
+    {
+      id: "product-4",
+      name: "Wireless Charging Pad",
+      price: 29.99,
+      description: "Fast-charging wireless pad compatible with all Qi-enabled devices.",
+      image: "https://picsum.photos/id/365/400/400",
+      category: "Electronics",
+      featured: false,
+      rating: 4.1,
+      stock: 15
+    },
+    {
+      id: "product-5",
+      name: "Smart Water Bottle",
+      price: 24.99,
+      description: "Tracks hydration levels and reminds you to drink water throughout the day.",
+      image: "https://picsum.photos/id/425/400/400",
+      category: "Fitness",
+      featured: false,
+      rating: 4.0,
+      stock: 20
+    },
+    {
+      id: "product-6",
+      name: "Premium Notebook",
+      price: 19.99,
+      description: "Hardcover notebook with premium paper, bookmark ribbon, and elastic closure.",
+      image: "https://picsum.photos/id/20/400/400",
+      category: "Stationery",
+      featured: true,
+      rating: 4.6,
+      stock: 40
+    }
+  ];
+  
+  // Find the product by ID
+  const product = products.find(p => p.id === productId);
+  
+  if (product) {
+    res.status(200).json(product);
+  } else {
+    res.status(404).json({ error: "Product not found" });
+  }
+});
+
+// Update the catch-all route to include the new endpoints
 app.use('*', (req, res) => {
   res.status(404).json({
     status: 'error',
@@ -540,7 +730,9 @@ app.use('*', (req, res) => {
       '/api/payment/methods',
       '/api/webhooks/stripe',
       '/api/test-email',
-      '/api/orders'
+      '/api/orders',
+      '/api/products',
+      '/api/products/:id'
     ]
   });
 });
