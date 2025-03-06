@@ -12,9 +12,44 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 8080;
 
+// CORS Configuration
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps, curl requests)
+    if (!origin) return callback(null, true);
+    
+    // Define allowed origins
+    const allowedOrigins = [
+      // Vercel deployment
+      process.env.CORS_ORIGIN,
+      // Common development origins
+      'http://localhost:3000',
+      'http://localhost:5173',
+      'http://127.0.0.1:5173',
+      'http://127.0.0.1:3000',
+      // Add your specific Vercel URL here
+      'https://e-commerce-checkout-redesign.vercel.app'
+    ].filter(Boolean); // Filter out any undefined values
+    
+    // Check if the origin is allowed
+    if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV !== 'production') {
+      callback(null, true);
+    } else {
+      console.log('Blocked by CORS:', origin);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+  optionsSuccessStatus: 204
+};
+
 // Middleware
-app.use(helmet());
-app.use(cors());
+app.use(helmet({
+  contentSecurityPolicy: false, // Disable CSP for development/demo purposes
+  crossOriginEmbedderPolicy: false // Allow loading resources from different origins
+}));
+app.use(cors(corsOptions));
 
 // Use JSON middleware for all routes except the Stripe webhook
 app.use((req, res, next) => {
