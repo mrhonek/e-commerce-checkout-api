@@ -423,15 +423,15 @@ const emailService = {
   }
 };
 
-// Add route for order confirmation
-app.post('/api/orders', async (req, res) => {
+// Add route for order confirmation - handle both GET and POST for easier testing
+app.use('/api/orders', async (req, res) => {
   try {
     // In a real app, this would save the order to the database
-    // For this demo, we'll just use the request body data
+    // For this demo, we'll just use the request body data (or default data for GET requests)
     
     const order = {
       orderNumber: 'ORD-' + Math.floor(10000 + Math.random() * 90000),
-      items: req.body.items || [
+      items: (req.method === 'POST' && req.body && req.body.items) || [
         {
           id: 'product-1',
           name: 'Modern Desk Lamp',
@@ -447,13 +447,13 @@ app.post('/api/orders', async (req, res) => {
           image: 'https://via.placeholder.com/50'
         }
       ],
-      shippingMethod: req.body.shippingMethod || {
+      shippingMethod: (req.method === 'POST' && req.body && req.body.shippingMethod) || {
         id: 'express',
         name: 'Express Shipping',
         price: 12.99,
         estimatedDays: '1-2 business days'
       },
-      shippingAddress: req.body.shippingAddress || {
+      shippingAddress: (req.method === 'POST' && req.body && req.body.shippingAddress) || {
         firstName: 'John',
         lastName: 'Doe',
         street: '123 Main St',
@@ -462,14 +462,14 @@ app.post('/api/orders', async (req, res) => {
         zipCode: '90210',
         country: 'US'
       },
-      paymentMethod: req.body.paymentMethod || 'Credit Card',
-      subtotal: req.body.subtotal || 309.97,
-      tax: req.body.tax || 25.83,
-      total: req.body.total || 348.79
+      paymentMethod: (req.method === 'POST' && req.body && req.body.paymentMethod) || 'Credit Card',
+      subtotal: (req.method === 'POST' && req.body && req.body.subtotal) || 309.97,
+      tax: (req.method === 'POST' && req.body && req.body.tax) || 25.83,
+      total: (req.method === 'POST' && req.body && req.body.total) || 348.79
     };
     
     // Customer email - use request body or default to SMTP_USER for testing
-    const customerEmail = req.body.email || process.env.SMTP_USER;
+    const customerEmail = (req.method === 'POST' && req.body && req.body.email) || process.env.SMTP_USER;
     
     // Send order confirmation email
     const emailResult = await emailService.sendOrderConfirmation(order, customerEmail);
@@ -478,6 +478,7 @@ app.post('/api/orders', async (req, res) => {
     res.status(201).json({
       success: true,
       message: 'Order created successfully',
+      requestMethod: req.method,
       order,
       email: emailResult
     });
