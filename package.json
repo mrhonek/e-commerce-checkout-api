@@ -5,6 +5,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "tsc",
+    "build:fallback": "node scripts/deploy-fallback.js",
     "start": "node dist/server.js",
     "start-debug": "node index.js",
     "start-bypass": "node deploy-bypass.js",

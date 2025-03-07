@@ -1,4 +1,4 @@
-FROM node:20-alpine as builder
+FROM node:20.11.1-alpine3.19 as builder
 
 WORKDIR /app
 
@@ -20,7 +20,7 @@ RUN npm run build || (echo "TypeScript build failed. Using bypass script instead
     mkdir -p dist && echo "// Placeholder" > dist/server.js)
 
 # Production stage
-FROM node:20-alpine as production
+FROM node:20.11.1-alpine3.19 as production
 
 WORKDIR /app
 
