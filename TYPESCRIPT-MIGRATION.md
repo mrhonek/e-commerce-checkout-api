@@ -20,7 +20,7 @@ We're taking an incremental approach to migration:
 - ✅ Create model interfaces and schemas
 - ✅ Complete model implementation
 - ✅ Establish mongoose connection with proper types
-- ⬜ Migrate middleware
+- ✅ Migrate middleware
 - ⬜ Migrate controllers
 - ⬜ Migrate route handlers
 - ⬜ Final integration testing
@@ -39,6 +39,10 @@ We're taking an incremental approach to migration:
 | Order model | ✅ | `src/models/order.model.ts` |
 | Cart model | ✅ | `src/models/cart.model.ts` |
 | Database connection | ✅ | `src/db/connection.ts` |
+| Error middleware | ✅ | `src/middleware/error.middleware.ts` |
+| Auth middleware | ✅ | `src/middleware/auth.middleware.ts` |
+| Logger middleware | ✅ | `src/middleware/logger.middleware.ts` |
+| Validation middleware | ✅ | `src/middleware/validation.middleware.ts` |
 
 ## Testing Commands
 
@@ -57,8 +61,6 @@ npm run dev:bypass
 ```
 src/controllers/authController.ts:34:23 - JWT sign function parameters
 src/controllers/paymentController.ts:12:3 - Stripe API version
-src/middleware/authMiddleware.ts:19:7 - User type mismatch
-src/routes/* - Router handler typing issues
 ```
 
 ## Migration Roadmap
@@ -71,8 +73,8 @@ src/routes/* - Router handler typing issues
 - ✅ Establish mongoose connection with proper types
 
 ### Phase 2: Controllers and Routes (Current)
-- ⬜ Migrate middleware (next focus)
-- ⬜ Migrate controllers one at a time
+- ✅ Migrate middleware
+- ⬜ Migrate controllers one at a time (next focus)
 - ⬜ Update route handlers to use TypeScript
 - ⬜ Fix typing issues in Express route handlers
 
@@ -88,7 +90,9 @@ Once migration is complete, we'll update the Railway deployment to use the TypeS
 ## Dependencies Added
 - `@types/bcryptjs` - Type definitions for bcryptjs
 
-## Mongoose TypeScript Tips
+## TypeScript Tips
+
+### Mongoose TypeScript Tips
 
 When working with Mongoose models in TypeScript:
 
@@ -128,4 +132,43 @@ When working with Mongoose models in TypeScript:
 5. Use proper generics when creating models:
    ```typescript
    const User = mongoose.model<IUserDocument, Model<IUserDocument, {}, UserMethods>>('User', UserSchema);
+   ```
+
+### Express Middleware TypeScript Tips
+
+When creating Express middleware with TypeScript:
+
+1. Use proper request and response typing:
+   ```typescript
+   import { Request, Response, NextFunction } from 'express';
+   
+   const middleware = (req: Request, res: Response, next: NextFunction): void => {
+     // middleware implementation
+   };
+   ```
+
+2. Extend the Request interface for custom properties:
+   ```typescript
+   declare global {
+     namespace Express {
+       interface Request {
+         user?: UserPayload;
+       }
+     }
+   }
+   ```
+
+3. Use type guards for safer typing:
+   ```typescript
+   const hasField = (obj: any): obj is { field: string } => {
+     return 'field' in obj;
+   };
+   ```
+
+4. Create custom error classes:
+   ```typescript
+   class AppError extends Error {
+     statusCode: number;
+     // additional properties and methods
+   }
    ``` 
