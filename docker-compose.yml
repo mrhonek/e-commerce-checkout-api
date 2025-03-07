@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder # Use the builder stage for development
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./:/app
+      - /app/node_modules # Don't overwrite node_modules with host directory
+    environment:
+      - NODE_ENV=development
+      - PORT=8080
+      - MONGO_URI=${MONGO_URI}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
+      - CORS_ORIGIN=${CORS_ORIGIN}
+    command: npm run dev
+    # Uncomment to use the bypass script during development
+    # command: nodemon deploy-bypass.js
+
+  # Uncomment if you want MongoDB running locally
+  # mongodb:
+  #   image: mongo:latest
+  #   ports:
+  #     - "27017:27017"
+  #   volumes:
+  #     - mongodb_data:/data/db
+  #   environment:
+  #     - MONGO_INITDB_ROOT_USERNAME=root
+  #     - MONGO_INITDB_ROOT_PASSWORD=example
+
+# Uncomment if using local MongoDB
+# volumes:
+#   mongodb_data: 

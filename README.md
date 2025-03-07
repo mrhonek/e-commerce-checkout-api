@@ -1,93 +1,106 @@
-# E-Commerce Checkout API
+# E-Commerce Checkout Backend
 
-Backend API service for the E-Commerce Checkout Redesign project. This API handles user authentication, product data, cart management, and checkout processing.
+This is the backend API for the E-Commerce Checkout system. It's built with Node.js, Express, TypeScript, and MongoDB.
 
-## Technologies Used
+## Setup Options
 
-- **Node.js** - JavaScript runtime
-- **Express** - Web framework
-- **TypeScript** - Type-safe JavaScript
-- **MongoDB** - NoSQL database
-- **Mongoose** - MongoDB ODM
-- **JWT** - Authentication
-- **Stripe** - Payment processing
-- **Jest** - Testing
+There are two ways to run this backend:
 
-## Getting Started
+1. **TypeScript Build (Recommended)**: Compiles TypeScript code to JavaScript and runs the compiled code
+2. **Bypass Script**: Uses the deploy-bypass.js script (legacy approach) if you encounter TypeScript compilation issues
 
-### Prerequisites
+## Prerequisites
 
-- Node.js 18 or later
-- MongoDB (local or Atlas connection)
-- Stripe account (for payment processing)
+- Node.js (v16+)
+- npm or yarn
+- MongoDB connection string
+- Stripe API keys (for payment processing)
 
-### Installation
+## Environment Variables
 
-1. Clone the repository
-   ```bash
-   git clone https://github.com/mrhonek/e-commerce-checkout-api.git
-   cd e-commerce-checkout-api
-   ```
+Create a `.env` file in the root directory with the following variables:
 
-2. Install dependencies
-   ```bash
-   npm install
-   ```
-
-3. Set up environment variables
-   ```bash
-   cp .env.example .env
-   ```
-   Then edit `.env` with your actual configuration values.
-
-4. Start the development server
-   ```bash
-   npm run dev
-   ```
-
-## API Endpoints
-
-### Authentication
-- `POST /api/auth/register` - Register a new user
-- `POST /api/auth/login` - Log in a user
-- `GET /api/auth/me` - Get current user data
-
-### Products
-- `GET /api/products` - Get all products
-- `GET /api/products/:id` - Get a specific product
-
-### Cart
-- `GET /api/cart` - Get user's cart
-- `POST /api/cart` - Add item to cart
-- `PUT /api/cart/:itemId` - Update cart item
-- `DELETE /api/cart/:itemId` - Remove item from cart
-
-### Checkout
-- `POST /api/checkout/shipping` - Submit shipping information
-- `POST /api/checkout/payment` - Process payment
-- `POST /api/checkout/complete` - Complete order
-
-### Orders
-- `GET /api/orders` - Get user's orders
-- `GET /api/orders/:id` - Get specific order details
-
-## Development
-
-### Testing
-```bash
-npm test
+```
+PORT=8080
+NODE_ENV=development
+MONGO_URI=your_mongodb_connection_string
+STRIPE_SECRET_KEY=your_stripe_secret_key
+STRIPE_WEBHOOK_SECRET=your_stripe_webhook_secret
+CORS_ORIGIN=http://localhost:3000,https://e-commerce-checkout-redesign.vercel.app
 ```
 
-### Linting
-```bash
-npm run lint
-```
+## Installation
 
-### Build for Production
 ```bash
+# Install dependencies
+npm install
+
+# Build TypeScript
 npm run build
 ```
 
+## Running the Application
+
+### TypeScript Approach (Recommended)
+
+```bash
+# Development mode with hot reloading
+npm run dev
+
+# Production mode
+npm run build
+npm start
+```
+
+### Bypass Script (If TypeScript Build Fails)
+
+```bash
+# Run the bypass script directly
+npm run start-bypass
+```
+
+## Docker
+
+This project includes Docker configuration for easy development and deployment.
+
+### Using Docker Compose (Development)
+
+```bash
+# Start the backend in development mode
+docker-compose up
+
+# Build and start in detached mode
+docker-compose up --build -d
+```
+
+### Using Docker (Production)
+
+```bash
+# Build the Docker image
+docker build -t ecommerce-backend .
+
+# Run the container
+docker run -p 8080:8080 --env-file .env ecommerce-backend
+```
+
+## API Endpoints
+
+The backend provides endpoints for:
+
+- Authentication
+- Product management
+- Cart operations
+- Orders
+- Payments (via Stripe)
+- Shipping options
+
+## Development
+
+- Run `npm run lint` to check for code style issues
+- Run `npm run seed` to populate the database with sample data
+
 ## Deployment
 
-This API is designed to be deployed on Railway. For deployment instructions, see [Railway documentation](https://docs.railway.app/).
+This backend can be deployed to services like Railway, Heroku, or any other platform that supports Node.js applications.
+
+For Railway deployment, the included Dockerfile will be used automatically.

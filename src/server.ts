@@ -23,7 +23,40 @@ connectDB()
 
 // Middleware
 app.use(helmet()); // Security headers
-app.use(cors()); // Enable CORS
+
+// Configure CORS with allowed origins
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'http://localhost:4173',
+  process.env.CORS_ORIGIN,
+  // Common development origins
+  'http://localhost:8080',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:3000',
+  // Vercel deployment URLs
+  'https://e-commerce-checkout-redesign.vercel.app',
+  'https://e-commerce-checkout-redesign-fqsb18vg3-mikes-projects-15384662.vercel.app',
+  // Add any other Vercel preview URLs with the following pattern
+  'https://e-commerce-checkout-redesign-git-*-mikes-projects-15384662.vercel.app',
+].filter(Boolean); // Filter out any undefined values
+
+app.use(cors({
+  origin: function(origin, callback) {
+    // Allow requests with no origin (like mobile apps, curl requests)
+    if (!origin) return callback(null, true);
+    
+    // Check if the origin is allowed
+    if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV !== 'production') {
+      callback(null, true);
+    } else {
+      console.log('Blocked by CORS:', origin);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true
+}));
+
 app.use(express.json()); // Parse JSON requests
 
 // Routes
@@ -34,7 +67,7 @@ app.use('/api/payment', paymentRoutes);
 app.use('/api/order', orderRoutes);
 
 // Health check endpoint
-app.get('/health', (req, res) => {
+app.get('/api/health', (req, res) => {
   res.status(200).json({ status: 'OK', message: 'Server is running' });
 });
 
