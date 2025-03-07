@@ -164,6 +164,129 @@ app.get('/api/cart', (req, res) => {
   });
 });
 
+// Add item to cart
+app.post('/api/cart/items', (req, res) => {
+  const { productId, name, price, quantity, image } = req.body;
+  
+  if (!productId || !name || !price || !quantity) {
+    return res.status(400).json({ message: 'Missing required fields' });
+  }
+  
+  // Mock response - in a real app, this would add the item to the cart in a database
+  res.status(201).json({
+    items: [
+      {
+        id: 'product-1',
+        name: 'Product 1',
+        price: 19.99,
+        quantity: 2,
+        image: 'https://via.placeholder.com/150'
+      },
+      {
+        id: 'product-2',
+        name: 'Product 2',
+        price: 29.99,
+        quantity: 1,
+        image: 'https://via.placeholder.com/150'
+      },
+      {
+        id: productId,
+        name,
+        price,
+        quantity,
+        image
+      }
+    ],
+    subtotal: 69.97 + (price * quantity),
+    tax: 5.60 + ((price * quantity) * 0.08),
+    total: 75.57 + (price * quantity) + ((price * quantity) * 0.08)
+  });
+});
+
+// Update cart item
+app.put('/api/cart/items/:itemId', (req, res) => {
+  const { itemId } = req.params;
+  const { quantity } = req.body;
+  
+  if (!quantity) {
+    return res.status(400).json({ message: 'Quantity is required' });
+  }
+  
+  // Mock response - in a real app, this would update the item in the cart in a database
+  res.status(200).json({
+    items: [
+      {
+        id: 'product-1',
+        name: 'Product 1',
+        price: 19.99,
+        quantity: itemId === 'product-1' ? quantity : 2,
+        image: 'https://via.placeholder.com/150'
+      },
+      {
+        id: 'product-2',
+        name: 'Product 2',
+        price: 29.99,
+        quantity: itemId === 'product-2' ? quantity : 1,
+        image: 'https://via.placeholder.com/150'
+      }
+    ],
+    subtotal: itemId === 'product-1' ? (19.99 * quantity) + 29.99 : 19.99 * 2 + (29.99 * quantity),
+    tax: itemId === 'product-1' ? ((19.99 * quantity) + 29.99) * 0.08 : (19.99 * 2 + (29.99 * quantity)) * 0.08,
+    total: itemId === 'product-1' ? 
+      ((19.99 * quantity) + 29.99) + (((19.99 * quantity) + 29.99) * 0.08) : 
+      (19.99 * 2 + (29.99 * quantity)) + ((19.99 * 2 + (29.99 * quantity)) * 0.08)
+  });
+});
+
+// Remove item from cart
+app.delete('/api/cart/items/:itemId', (req, res) => {
+  const { itemId } = req.params;
+  
+  // Mock response - in a real app, this would remove the item from the cart in a database
+  let items = [
+    {
+      id: 'product-1',
+      name: 'Product 1',
+      price: 19.99,
+      quantity: 2,
+      image: 'https://via.placeholder.com/150'
+    },
+    {
+      id: 'product-2',
+      name: 'Product 2',
+      price: 29.99,
+      quantity: 1,
+      image: 'https://via.placeholder.com/150'
+    }
+  ];
+  
+  // Remove the specified item
+  items = items.filter(item => item.id !== itemId);
+  
+  // Calculate new totals
+  const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  const tax = subtotal * 0.08;
+  const total = subtotal + tax;
+  
+  res.status(200).json({
+    items,
+    subtotal,
+    tax,
+    total
+  });
+});
+
+// Clear cart
+app.delete('/api/cart', (req, res) => {
+  // Mock response - in a real app, this would clear the cart in a database
+  res.status(200).json({
+    items: [],
+    subtotal: 0,
+    tax: 0,
+    total: 0
+  });
+});
+
 // Payment routes
 app.get('/api/payment/methods', (req, res) => {
   res.status(200).json([
@@ -727,6 +850,8 @@ app.use('*', (req, res) => {
       '/api/shipping/options',
       '/api/shipping/calculate',
       '/api/cart',
+      '/api/cart/items',
+      '/api/cart/items/:itemId',
       '/api/payment/methods',
       '/api/webhooks/stripe',
       '/api/test-email',
