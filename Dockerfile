@@ -51,20 +51,8 @@ fi
 # Expose port
 EXPOSE 8080
 
-# Try to find any TypeScript server file
+# Try to find any TypeScript server files
 RUN find . -type f -name "*server*.ts" | sort || true
 
-# Command to start the application
-CMD ["sh", "-c", "if [ -f src/server-ts.ts ]; then \
-                   echo 'Starting src/server-ts.ts'; \
-                   node --require ts-node/register src/server-ts.ts; \
-                 elif [ -f server-ts.ts ]; then \
-                   echo 'Starting server-ts.ts'; \
-                   node --require ts-node/register server-ts.ts; \
-                 elif [ -f src/server.ts ]; then \
-                   echo 'Starting src/server.ts'; \
-                   node --require ts-node/register src/server.ts; \
-                 else \
-                   echo 'No server file found, using deploy-bypass.js'; \
-                   node deploy-bypass.js; \
-                 fi"] 
+# Command to start the application using npm start
+CMD ["npm", "run", "start"] 
