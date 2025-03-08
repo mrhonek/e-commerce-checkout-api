@@ -3,8 +3,27 @@ import jwt from 'jsonwebtoken';
 import { AppError } from './error.middleware';
 import User from '../models/user.model';
 
-// Import types from index.d.ts
-import '../types'; 
+// Define the structure of decoded JWT token
+interface JwtPayload {
+  id: string;
+  email: string;
+  role: string;
+  [key: string]: any;
+}
+
+// Extend Express Request interface
+declare global {
+  namespace Express {
+    interface Request {
+      user?: {
+        id: string;
+        email: string;
+        role: string;
+      };
+      token?: string;
+    }
+  }
+}
 
 /**
  * Get JWT token from request headers or cookies
@@ -23,16 +42,6 @@ const getTokenFromRequest = (req: Request): string | undefined => {
   
   return token;
 };
-
-/**
- * Interface for JWT payload structure
- */
-interface JwtPayload {
-  id: string;
-  email: string;
-  role: string;
-  [key: string]: any;
-}
 
 /**
  * Verify JWT token and return decoded payload

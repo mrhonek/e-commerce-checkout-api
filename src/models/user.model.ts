@@ -108,7 +108,11 @@ UserSchema.pre('save', async function(next) {
   try {
     // Generate salt and hash password
     const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(this.password, salt);
+    
+    // Fix the typing issue by explicitly casting password to string
+    const password = this.password as string;
+    const hashedPassword = await bcrypt.hash(password, salt);
+    
     this.password = hashedPassword;
     next();
   } catch (error) {
@@ -121,7 +125,9 @@ UserSchema.pre('save', async function(next) {
  */
 UserSchema.methods.comparePassword = async function(candidatePassword: string): Promise<boolean> {
   try {
-    return await bcrypt.compare(candidatePassword, this.password);
+    // Cast password to string for comparison
+    const password = this.password as string;
+    return await bcrypt.compare(candidatePassword, password);
   } catch (error) {
     throw error;
   }
