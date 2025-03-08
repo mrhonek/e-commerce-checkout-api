@@ -1,16 +1,55 @@
 /**
- * Custom type definitions for the e-commerce checkout API
+ * Global type definitions for the entire project
  */
+import { Document, Types } from 'mongoose';
 
-// Extend Express Request interface to include custom properties
-declare namespace Express {
-  export interface Request {
-    userId?: string;
-    user?: any;
-    cart?: any;
-    order?: any;
+// User payload for JWT authentication
+export interface UserPayload {
+  id: string;
+  email: string;
+  role: string;
+  iat?: number;
+  exp?: number;
+}
+
+// Extend Express Request
+declare global {
+  namespace Express {
+    interface Request {
+      user?: UserPayload;
+      token?: string;
+      cart?: any;
+      order?: any;
+    }
   }
 }
+
+// Extend Mongoose Document
+declare module 'mongoose' {
+  interface Document {
+    _id: Types.ObjectId;
+  }
+}
+
+// Helper types
+export type WithId<T> = T & {
+  _id: Types.ObjectId;
+  id?: string;
+};
+
+export type DeepPartial<T> = {
+  [P in keyof T]?: T[P] extends Array<infer U>
+    ? Array<DeepPartial<U>>
+    : T[P] extends ReadonlyArray<infer U>
+    ? ReadonlyArray<DeepPartial<U>>
+    : T[P] extends object
+    ? DeepPartial<T[P]>
+    : T[P];
+};
+
+/**
+ * Custom type definitions for the e-commerce checkout API
+ */
 
 // Order related types
 interface OrderItem {

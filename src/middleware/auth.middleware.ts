@@ -2,26 +2,9 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { AppError } from './error.middleware';
 import User from '../models/user.model';
-import { IUserDocument } from '../models/interfaces';
 
-// Extend the Express Request interface to include user
-declare global {
-  namespace Express {
-    interface Request {
-      user?: UserPayload;
-      token?: string;
-    }
-  }
-}
-
-// Define the structure of decoded JWT token
-export interface UserPayload {
-  id: string;
-  email: string;
-  role: string;
-  iat?: number;
-  exp?: number;
-}
+// Import types from index.d.ts
+import '../types'; 
 
 /**
  * Get JWT token from request headers or cookies
@@ -42,9 +25,19 @@ const getTokenFromRequest = (req: Request): string | undefined => {
 };
 
 /**
+ * Interface for JWT payload structure
+ */
+interface JwtPayload {
+  id: string;
+  email: string;
+  role: string;
+  [key: string]: any;
+}
+
+/**
  * Verify JWT token and return decoded payload
  */
-const verifyToken = (token: string): Promise<UserPayload> => {
+const verifyToken = (token: string): Promise<JwtPayload> => {
   return new Promise((resolve, reject) => {
     jwt.verify(
       token, 
@@ -54,7 +47,7 @@ const verifyToken = (token: string): Promise<UserPayload> => {
           return reject(err);
         }
         
-        resolve(decoded as UserPayload);
+        resolve(decoded as JwtPayload);
       }
     );
   });
@@ -78,18 +71,19 @@ export const protect = async (req: Request, res: Response, next: NextFunction): 
     
     // Check if user still exists
     const user = await User.findById(decoded.id).select('-password');
+    
     if (!user) {
       return next(new AppError('The user belonging to this token no longer exists.', 401));
     }
     
-    // Convert to a typed user object
-    const typedUser = user as IUserDocument;
+    // Convert to plain object to avoid mongoose document issues
+    const userObj: any = user.toObject();
     
     // Store user info and token for later use
     req.user = {
-      id: typedUser._id.toString(),
-      email: typedUser.email,
-      role: typedUser.role
+      id: decoded.id, // Use id from token instead of _id from document
+      email: userObj.email,
+      role: userObj.role
     };
     req.token = token;
     
