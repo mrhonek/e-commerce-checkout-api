@@ -11,11 +11,12 @@ RUN npm install
 # Copy the entire source code
 COPY . .
 
+# Debug: List contents to verify files are copied correctly
+RUN echo "Listing files in /app:" && ls -la && \
+    echo "Listing files in /app/src:" && ls -la src/
+
 # Expose port
 EXPOSE 8080
 
-# Set working directory to ensure paths are correct
-WORKDIR /app
-
-# Command to start the application using node with ts-node/register
-CMD ["node", "--require", "ts-node/register", "./src/server-ts.ts"] 
+# Command to start the application - use absolute path and find approach
+CMD ["sh", "-c", "find /app -name 'server-ts.ts' && node --require ts-node/register $(find /app -name 'server-ts.ts' | head -n 1)"] 
