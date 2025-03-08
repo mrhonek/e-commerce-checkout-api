@@ -3,8 +3,8 @@ builder = "DOCKERFILE"
 dockerfile = "Dockerfile"
 
 [deploy]
-startCommand = "npx ts-node src/server-ts.ts"
-healthcheckPath = "/health"
+startCommand = "node --require ts-node/register ./src/server-ts.ts"
+healthcheckPath = "/api/health"
 healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"
 numReplicas = 1

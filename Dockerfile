@@ -5,9 +5,8 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies including ts-node globally
+# Install dependencies
 RUN npm install
-RUN npm install -g ts-node typescript
 
 # Copy the entire source code
 COPY . .
@@ -15,5 +14,8 @@ COPY . .
 # Expose port
 EXPOSE 8080
 
-# Command to start the application using ts-node directly
-CMD ["npx", "ts-node", "src/server-ts.ts"] 
+# Set working directory to ensure paths are correct
+WORKDIR /app
+
+# Command to start the application using node with ts-node/register
+CMD ["node", "--require", "ts-node/register", "./src/server-ts.ts"] 
