@@ -3,7 +3,7 @@ builder = "DOCKERFILE"
 dockerfile = "Dockerfile"
 
 [deploy]
-startCommand = "sh -c 'find /app -name \"server-ts.ts\" && node --require ts-node/register $(find /app -name \"server-ts.ts\" | head -n 1)'"
+# Use the Dockerfile's CMD as is
 healthcheckPath = "/api/health"
 healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"
