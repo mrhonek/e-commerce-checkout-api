@@ -24,36 +24,34 @@ connectDB()
 // Middleware
 app.use(helmet()); // Security headers
 
-// Configure CORS with allowed origins
-const allowedOrigins = [
-  // Local development
-  'http://localhost:3000',
-  'http://localhost:5173',
-  'http://127.0.0.1:3000',
-  // Vercel deployment URLs
-  'https://e-commerce-checkout-redesign.vercel.app',
-  'https://e-commerce-checkout-redesign-fqsb18vg3-mikes-projects-15384662.vercel.app',
-  // Add any other Vercel preview URLs with the following pattern
-  'https://e-commerce-checkout-redesign-git-*-mikes-projects-15384662.vercel.app',    
-].filter(Boolean); // Filter out any undefined values
-
+// ** TEMPORARY ** Permissive CORS configuration to unblock development
 app.use(cors({
-  origin: function(origin, callback) {
-    // Allow requests with no origin (like mobile apps, curl requests)
-    if (!origin) return callback(null, true);
-    
-    // Check if the origin is allowed
-    if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV !== 'production') {
-      callback(null, true);
-    } else {
-      console.log('Blocked by CORS:', origin);
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true
+  origin: true, // Allow all origins
+  credentials: true, // Allow credentials
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 
+// Log for debugging CORS
+app.use((req, res, next) => {
+  console.log(`Request from origin: ${req.headers.origin}`);
+  next();
+});
+
 app.use(express.json()); // Parse JSON requests
+
+// Add this before the routes are initialized
+// Handle preflight requests
+app.options('*', cors());
+
+// Special handler for CORS issues
+app.use('/api/cors-test', (req, res) => {
+  res.json({ 
+    message: 'CORS is working properly!',
+    headers: req.headers,
+    timestamp: new Date().toISOString()
+  });
+});
 
 // Routes
 app.use('/api/auth', authRoutes);

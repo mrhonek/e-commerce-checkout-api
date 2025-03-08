@@ -14,6 +14,7 @@ import compression from 'compression';
 import { initializeRoutes } from './routes';
 import { loggerMiddleware } from './middleware';
 import db from './db/connection';
+import { corsHeadersMiddleware } from './middleware/cors.middleware';
 
 // Load environment variables
 dotenv.config();
@@ -22,41 +23,34 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 5000;
 
-// Configure CORS with allowed origins
-const allowedOrigins = [
-  // Local development
-  'http://localhost:3000',
-  'http://localhost:5173',
-  'http://127.0.0.1:3000',
-  // Vercel deployment URLs
-  'https://e-commerce-checkout-redesign.vercel.app',
-  'https://e-commerce-checkout-redesign-fqsb18vg3-mikes-projects-15384662.vercel.app',
-  // Add any other Vercel preview URLs with the following pattern
-  'https://e-commerce-checkout-redesign-git-*-mikes-projects-15384662.vercel.app',    
-].filter(Boolean); // Filter out any undefined values
-
-// Global middleware
-app.use(helmet()); // Security headers
+// ** TEMPORARY ** Permissive CORS configuration to unblock development
 app.use(cors({
-  origin: function(origin, callback) {
-    // Allow requests with no origin (like mobile apps, curl requests)
-    if (!origin) return callback(null, true);
-
-    // Check if the origin is allowed
-    if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV !== 'production') {
-      callback(null, true);
-    } else {
-      console.log('Blocked by CORS:', origin);
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true // Allow cookies in cross-origin requests
+  origin: '*', // Allow all origins
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
+
+// Apply our custom CORS middleware as an additional layer
+app.use(corsHeadersMiddleware);
+
+// Handle preflight requests globally
+app.options('*', cors({ origin: '*' }));
+
 app.use(express.json()); // Parse JSON requests
 app.use(express.urlencoded({ extended: true })); // Parse URL-encoded requests
 app.use(cookieParser()); // Parse cookies
 app.use(compression()); // Compress responses
 app.use(loggerMiddleware); // Log requests and responses
+
+// Special handler for CORS issues
+app.use('/api/cors-test', (req, res) => {
+  res.json({ 
+    message: 'CORS is working properly!',
+    headers: req.headers,
+    timestamp: new Date().toISOString()
+  });
+});
 
 // Connect to MongoDB
 db.connectDB()
