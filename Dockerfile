@@ -5,21 +5,17 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install only production dependencies
-RUN npm install --only=production
+# Install dependencies including dev dependencies
+RUN npm install
 
-# Copy the bypass script
-COPY deploy-bypass.js ./
+# Copy the entire source code
+COPY . .
 
-# Copy environment variables
-COPY .env* ./
+# Build TypeScript code
+RUN npm run build
 
 # Expose port
 EXPOSE 8080
 
-# Create a placeholder dist directory
-RUN mkdir -p dist && \
-    echo "console.log('Using bypass script');" > dist/server.js
-
-# Command to start the application using the bypass script
-CMD ["node", "deploy-bypass.js"] 
+# Command to start the application using the TypeScript server
+CMD ["npx", "ts-node", "src/server-ts.ts"] 

@@ -3,12 +3,12 @@ builder = "DOCKERFILE"
 dockerfile = "Dockerfile"
 
 [deploy]
-startCommand = "node deploy-bypass.js"
+startCommand = "npx ts-node src/server-ts.ts"
 healthcheckPath = "/health"
 healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"
 numReplicas = 1
 
 [phases.build]
-# This is manually set to make sure Railway doesn't try to build TypeScript
-commands = ["echo 'Skipping TypeScript build'", "mkdir -p dist"] 
+# Build TypeScript code
+commands = ["npm install", "npm run build"] 
