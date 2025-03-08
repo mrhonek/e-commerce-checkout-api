@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { AppError } from './error.middleware';
 import User from '../models/user.model';
+import { IUserDocument } from '../models/interfaces';
 
 // Extend the Express Request interface to include user
 declare global {
@@ -81,11 +82,14 @@ export const protect = async (req: Request, res: Response, next: NextFunction): 
       return next(new AppError('The user belonging to this token no longer exists.', 401));
     }
     
+    // Convert to a typed user object
+    const typedUser = user as IUserDocument;
+    
     // Store user info and token for later use
     req.user = {
-      id: user._id.toString(),
-      email: user.email,
-      role: user.role
+      id: typedUser._id.toString(),
+      email: typedUser.email,
+      role: typedUser.role
     };
     req.token = token;
     

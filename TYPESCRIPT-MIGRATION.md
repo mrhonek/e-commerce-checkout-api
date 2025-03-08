@@ -70,6 +70,43 @@ npm run dev:bypass
 - ✅ `src/controllers/authController.ts:34:23 - JWT sign function parameters`
 - ✅ `src/controllers/paymentController.ts:12:3 - Stripe API version`
 
+## Remaining TypeScript Issues
+
+During integration testing, we've identified some remaining TypeScript issues:
+
+1. **Object ID Type Issues**: The `_id` property in Mongoose documents is causing type errors
+   - **File**: `src/middleware/auth.middleware.ts`
+   - **Error**: `'typedUser._id' is of type 'unknown'`
+   - **Potential Fix**: Define a proper TypeScript interface for Mongoose's ObjectId and extend Document
+
+2. **Request Interface Conflicts**: Conflicting declarations of the Express Request interface
+   - **File**: `src/middleware/auth.middleware.ts`
+   - **Error**: `Subsequent property declarations must have the same type. Property 'user' must be of type 'any', but here has type 'UserPayload | undefined'`
+   - **Potential Fix**: Consolidate all Request interface extensions in a single file
+
+## Integration Test Plan
+
+To ensure our TypeScript migration works correctly:
+
+1. **Run Database Connectivity Tests**:
+   - Verify MongoDB connection
+   - Test basic CRUD operations
+
+2. **Test Authentication Flow**:
+   - Register a new user
+   - Login and get JWT token
+   - Access protected routes
+
+3. **Test Product API**:
+   - Get products list
+   - Get single product
+   - Create/update/delete product (admin only)
+
+4. **Test Payment Flow**:
+   - Create payment intent
+   - Confirm payment
+   - Test webhook handling
+
 ## Migration Roadmap
 
 ### Phase 1: Utilities and Models (Complete)
