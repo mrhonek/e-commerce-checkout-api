@@ -1,13 +1,13 @@
 {
   "name": "backend",
   "version": "1.0.0",
-  "main": "deploy-bypass.js",
+  "main": "src/server-ts.ts",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "test:integration": "ts-node scripts/test-integration.ts",
     "build": "tsc",
     "build:fallback": "node scripts/deploy-fallback.js",
-    "start": "node deploy-bypass.js",
+    "start": "ts-node src/server-ts.ts",
     "start-ts": "node dist/server.js",
     "start-ts-dev": "ts-node src/server-ts.ts",
     "dev": "nodemon --exec ts-node src/server-ts.ts",
