@@ -10,5 +10,5 @@ restartPolicyType = "ON_FAILURE"
 numReplicas = 1
 
 [phases.build]
-# Build TypeScript code
-commands = ["npm install", "npm run build"] 
+# Skip TypeScript build in Railway and let Dockerfile handle it
+commands = ["echo 'Using Dockerfile for build'"] 
