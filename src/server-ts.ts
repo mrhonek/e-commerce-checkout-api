@@ -24,19 +24,15 @@ const port = process.env.PORT || 5000;
 
 // Configure CORS with allowed origins
 const allowedOrigins = [
+  // Local development
   'http://localhost:3000',
   'http://localhost:5173',
-  'http://localhost:4173',
-  process.env.CORS_ORIGIN,
-  // Common development origins
-  'http://localhost:8080',
-  'http://127.0.0.1:5173',
   'http://127.0.0.1:3000',
   // Vercel deployment URLs
   'https://e-commerce-checkout-redesign.vercel.app',
   'https://e-commerce-checkout-redesign-fqsb18vg3-mikes-projects-15384662.vercel.app',
   // Add any other Vercel preview URLs with the following pattern
-  'https://e-commerce-checkout-redesign-git-*-mikes-projects-15384662.vercel.app',
+  'https://e-commerce-checkout-redesign-git-*-mikes-projects-15384662.vercel.app',    
 ].filter(Boolean); // Filter out any undefined values
 
 // Global middleware
@@ -45,7 +41,7 @@ app.use(cors({
   origin: function(origin, callback) {
     // Allow requests with no origin (like mobile apps, curl requests)
     if (!origin) return callback(null, true);
-    
+
     // Check if the origin is allowed
     if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV !== 'production') {
       callback(null, true);
@@ -54,7 +50,7 @@ app.use(cors({
       callback(new Error('Not allowed by CORS'));
     }
   },
-  credentials: true
+  credentials: true // Allow cookies in cross-origin requests
 }));
 app.use(express.json()); // Parse JSON requests
 app.use(express.urlencoded({ extended: true })); // Parse URL-encoded requests
