@@ -9,10 +9,11 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import helmet from 'helmet';
-// Import our TypeScript utilities
-import { formatCurrency } from './utils/formatCurrency';
-import { getEstimatedDeliveryDate } from './utils/dateUtils';
-import { calculateOrderTotals, formatOrderForDisplay, generateOrderId } from './utils/orderUtils';
+import cookieParser from 'cookie-parser';
+import compression from 'compression';
+import { initializeRoutes } from './routes';
+import { loggerMiddleware } from './middleware';
+import db from './db/connection';
 
 // Load environment variables
 dotenv.config();
@@ -38,7 +39,7 @@ const allowedOrigins = [
   'https://e-commerce-checkout-redesign-git-*-mikes-projects-15384662.vercel.app',
 ].filter(Boolean); // Filter out any undefined values
 
-// Middleware
+// Global middleware
 app.use(helmet()); // Security headers
 app.use(cors({
   origin: function(origin, callback) {
@@ -56,56 +57,29 @@ app.use(cors({
   credentials: true
 }));
 app.use(express.json()); // Parse JSON requests
+app.use(express.urlencoded({ extended: true })); // Parse URL-encoded requests
+app.use(cookieParser()); // Parse cookies
+app.use(compression()); // Compress responses
+app.use(loggerMiddleware); // Log requests and responses
 
-// Sample route using TypeScript utilities
-app.get('/api/sample', (req, res) => {
-  const sampleItems = [
-    { name: 'Product 1', price: 29.99, quantity: 2 },
-    { name: 'Product 2', price: 49.99, quantity: 1 }
-  ];
-  
-  const orderId = generateOrderId();
-  const totals = calculateOrderTotals(sampleItems, 5.99);
-  const estimatedDelivery = getEstimatedDeliveryDate(3);
-  
-  const response = {
-    success: true,
-    data: {
-      orderId,
-      items: sampleItems,
-      totals: {
-        ...totals,
-        formattedSubtotal: formatCurrency(totals.subtotal),
-        formattedShipping: formatCurrency(totals.shipping),
-        formattedTax: formatCurrency(totals.tax),
-        formattedTotal: formatCurrency(totals.total)
-      },
-      estimatedDelivery
+// Connect to MongoDB
+db.connectDB()
+  .then(() => {
+    console.log('Connected to MongoDB');
+    
+    // Initialize all routes
+    initializeRoutes(app);
+    
+    // Start server
+    if (process.env.NODE_ENV !== 'test') {
+      app.listen(port, () => {
+        console.log(`TypeScript server running on port ${port}`);
+      });
     }
-  };
-  
-  res.json(response);
-});
-
-// Health check endpoint
-app.get('/api/health', (req, res) => {
-  res.status(200).json({ status: 'OK', message: 'TypeScript Server is running' });
-});
-
-// Error handling middleware
-app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  console.error(err.stack);
-  res.status(500).json({
-    status: 'error',
-    message: 'Something went wrong on the server'
+  })
+  .catch(err => {
+    console.error('Failed to connect to MongoDB:', err);
+    process.exit(1);
   });
-});
-
-// Start server
-if (process.env.NODE_ENV !== 'test') {
-  app.listen(port, () => {
-    console.log(`TypeScript server running on port ${port}`);
-  });
-}
 
 export default app; 

@@ -1,7 +1,7 @@
-import express from 'express';
+import { Router } from 'express';
 import { getCart, addToCart, updateCartItem, removeFromCart, clearCart } from '../controllers/cartController';
 
-const router = express.Router();
+const router = Router();
 
 // Get cart contents
 router.get('/', getCart);

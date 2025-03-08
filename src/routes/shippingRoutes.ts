@@ -1,7 +1,7 @@
-import express from 'express';
+import { Router } from 'express';
 import { getShippingOptions, calculateShipping, validateAddress } from '../controllers/shippingController';
 
-const router = express.Router();
+const router = Router();
 
 // Get available shipping options
 router.get('/options', getShippingOptions);

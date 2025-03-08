@@ -1,7 +1,7 @@
-import express from 'express';
+import { Router } from 'express';
 import { createPaymentIntent, confirmPayment, getPaymentMethods } from '../controllers/paymentController';
 
-const router = express.Router();
+const router = Router();
 
 // Get available payment methods
 router.get('/methods', getPaymentMethods);

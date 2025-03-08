@@ -1,7 +1,7 @@
-import express from 'express';
+import { Router } from 'express';
 import { createOrder, getOrder, getOrders } from '../controllers/orderController';
 
-const router = express.Router();
+const router = Router();
 
 // Get all orders
 router.get('/', getOrders);

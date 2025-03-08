@@ -22,7 +22,7 @@ We're taking an incremental approach to migration:
 - ✅ Establish mongoose connection with proper types
 - ✅ Migrate middleware
 - ✅ Migrate controllers
-- ⬜ Migrate route handlers
+- ✅ Migrate route handlers
 - ⬜ Final integration testing
 
 ## Migrated Components
@@ -47,6 +47,11 @@ We're taking an incremental approach to migration:
 | Auth controller | ✅ | `src/controllers/auth.controller.ts` |
 | Product controller | ✅ | `src/controllers/product.controller.ts` |
 | Payment controller | ✅ | `src/controllers/payment.controller.ts` |
+| Auth routes | ✅ | `src/routes/auth.routes.ts` |
+| Product routes | ✅ | `src/routes/product.routes.ts` |
+| Payment routes | ✅ | `src/routes/payment.routes.ts` |
+| Routes setup | ✅ | `src/routes/index.ts` |
+| Main server | ✅ | `src/server-ts.ts` |
 
 ## Testing Commands
 
@@ -74,15 +79,15 @@ npm run dev:bypass
 - ✅ Complete remaining models (Product, Order, Cart)
 - ✅ Establish mongoose connection with proper types
 
-### Phase 2: Controllers and Routes (Current)
+### Phase 2: Controllers and Routes (Complete)
 - ✅ Migrate middleware
 - ✅ Migrate controllers one at a time
-- ⬜ Update route handlers to use TypeScript (next focus)
-- ⬜ Fix typing issues in Express route handlers
+- ✅ Update route handlers to use TypeScript
+- ✅ Fix typing issues in Express route handlers
 
-### Phase 3: Main Server and Integration
-- ⬜ Replace main server with TypeScript version
-- ⬜ Integration testing of all components
+### Phase 3: Main Server and Integration (Current)
+- ✅ Replace main server with TypeScript version
+- ⬜ Integration testing of all components (next focus)
 - ⬜ Deprecate bypass script when ready
 
 ## Deployment Strategy
@@ -91,6 +96,10 @@ Once migration is complete, we'll update the Railway deployment to use the TypeS
 
 ## Dependencies Added
 - `@types/bcryptjs` - Type definitions for bcryptjs
+- `cookie-parser` - Cookie parsing middleware
+- `compression` - Response compression middleware
+- `@types/cookie-parser` - Type definitions for cookie-parser
+- `@types/compression` - Type definitions for compression
 
 ## TypeScript Tips
 
@@ -213,4 +222,40 @@ When creating controllers with TypeScript:
 4. Use specific types for third-party libraries:
    ```typescript
    type StripeApiVersion = '2023-10-16' | '2024-02-15';
+   ```
+
+### Route Handler TypeScript Tips
+
+When creating route handlers with TypeScript:
+
+1. Import Router from express:
+   ```typescript
+   import { Router } from 'express';
+   const router = Router();
+   ```
+
+2. Export the router as default:
+   ```typescript
+   export default router;
+   ```
+
+3. Use an initialization function for all routes:
+   ```typescript
+   export const initializeRoutes = (app: Application): void => {
+     app.use('/api/auth', authRoutes);
+     // other routes
+   };
+   ```
+
+4. Handle middleware arrays with proper typing:
+   ```typescript
+   router.post(
+     '/login',
+     [
+       validate([
+         body('email').isEmail()
+       ])
+     ],
+     controllerMethod
+   );
    ``` 
