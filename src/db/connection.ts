@@ -10,7 +10,7 @@ const options: mongoose.ConnectOptions = {
 };
 
 // MongoDB connection URI
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/e-commerce';
+const MONGO_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/e-commerce';
 
 /**
  * Connect to MongoDB database

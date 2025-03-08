@@ -1,172 +1,169 @@
 import dotenv from 'dotenv';
 import mongoose from 'mongoose';
-import connectDB from './connection';
+import Product from '../models/product.model';
+import User from '../models/user.model';
 
 // Load environment variables
 dotenv.config();
 
-// Sample products data
+// MongoDB connection URI - using Railway MongoDB instance
+const MONGO_URI = process.env.MONGODB_URI || (() => {
+  console.error('ERROR: MONGODB_URI environment variable is not set.');
+  console.error('Please make sure your .env file contains the Railway connection string.');
+  process.exit(1);
+  return '';
+})();
+
+// Sample product data
 const products = [
   {
-    id: 'prod_1',
-    name: 'Premium Headphones',
-    description: 'Noise-cancelling wireless headphones with premium sound quality.',
-    price: 249.99,
-    image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500&q=80',
-    category: 'Electronics'
+    name: 'Classic White T-Shirt',
+    slug: 'classic-white-t-shirt',
+    price: 29.99,
+    description: 'A comfortable and versatile white t-shirt made from 100% cotton.',
+    category: 'clothing',
+    sku: 'TS-WHT-001',
+    stockQuantity: 90,
+    images: ['https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80'],
+    features: ['100% cotton', 'Machine washable', 'Regular fit'],
+    variants: [
+      { size: 'S', color: 'white', inventory: 25 },
+      { size: 'M', color: 'white', inventory: 30 },
+      { size: 'L', color: 'white', inventory: 20 },
+      { size: 'XL', color: 'white', inventory: 15 }
+    ],
+    tags: ['t-shirt', 'casual', 'essential'],
+    isInStock: true,
+    isFeatured: true
   },
   {
-    id: 'prod_2',
-    name: 'Smart Watch',
-    description: 'Track your fitness, receive notifications, and more with this premium smartwatch.',
-    price: 199.99,
-    image: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500&q=80',
-    category: 'Electronics'
+    name: 'Classic Black T-Shirt',
+    slug: 'classic-black-t-shirt',
+    price: 29.99,
+    description: 'A comfortable and versatile black t-shirt made from 100% cotton.',
+    category: 'clothing',
+    sku: 'TS-BLK-001',
+    stockQuantity: 85,
+    images: ['https://images.unsplash.com/photo-1503341504253-dff4815485f1?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80'],
+    features: ['100% cotton', 'Machine washable', 'Regular fit'],
+    variants: [
+      { size: 'S', color: 'black', inventory: 25 },
+      { size: 'M', color: 'black', inventory: 30 },
+      { size: 'L', color: 'black', inventory: 20 },
+      { size: 'XL', color: 'black', inventory: 15 }
+    ],
+    tags: ['t-shirt', 'casual', 'essential'],
+    isInStock: true,
+    isFeatured: false
   },
   {
-    id: 'prod_3',
-    name: 'Wireless Earbuds',
-    description: 'True wireless earbuds with touch controls and 24-hour battery life.',
-    price: 129.99,
-    image: 'https://images.unsplash.com/photo-1572569511254-d8f925fe2cbb?w=500&q=80',
-    category: 'Electronics'
-  },
-  {
-    id: 'prod_4',
-    name: 'Laptop Backpack',
-    description: 'Water-resistant backpack with multiple compartments for your laptop and accessories.',
+    name: 'Slim Fit Jeans',
+    slug: 'slim-fit-jeans',
     price: 59.99,
-    image: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=500&q=80',
-    category: 'Accessories'
+    description: 'Modern slim fit jeans with a comfortable stretch.',
+    category: 'clothing',
+    sku: 'JN-BLU-001',
+    stockQuantity: 50,
+    images: ['https://images.unsplash.com/photo-1542272604-787c3835535d?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80'],
+    features: ['98% cotton, 2% elastane', 'Slim fit', 'Machine washable'],
+    variants: [
+      { size: '30x32', color: 'blue', inventory: 20 },
+      { size: '32x32', color: 'blue', inventory: 25 },
+      { size: '34x32', color: 'blue', inventory: 25 },
+      { size: '36x32', color: 'blue', inventory: 15 }
+    ],
+    tags: ['jeans', 'slim-fit', 'casual'],
+    isInStock: true,
+    isFeatured: false
   },
   {
-    id: 'prod_5',
-    name: 'Bluetooth Speaker',
-    description: 'Portable Bluetooth speaker with 360° sound and 12-hour battery life.',
-    price: 89.99,
-    image: 'https://images.unsplash.com/photo-1612444530582-fc66183b16f0?w=500&q=80',
-    category: 'Electronics'
+    name: 'Wireless Headphones',
+    slug: 'wireless-headphones',
+    price: 129.99,
+    description: 'High-quality wireless headphones with noise cancellation.',
+    category: 'electronics',
+    sku: 'HP-BLK-001',
+    stockQuantity: 75,
+    images: ['https://images.unsplash.com/photo-1505740420928-5e560c06d30e?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80'],
+    features: ['Bluetooth 5.0', '30-hour battery life', 'Active noise cancellation'],
+    variants: [
+      { color: 'black', inventory: 35 },
+      { color: 'white', inventory: 25 },
+      { color: 'blue', inventory: 15 }
+    ],
+    tags: ['headphones', 'wireless', 'audio'],
+    isInStock: true,
+    isFeatured: true
+  },
+  {
+    name: 'Smart Watch',
+    slug: 'smart-watch',
+    price: 249.99,
+    description: 'Advanced smartwatch with health tracking and notifications.',
+    category: 'electronics',
+    sku: 'SW-BLK-001',
+    stockQuantity: 35,
+    images: ['https://images.unsplash.com/photo-1523275335684-37898b6baf30?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80'],
+    features: ['Heart rate monitor', 'GPS', 'Water resistant', '5-day battery life'],
+    variants: [
+      { color: 'black', inventory: 20 },
+      { color: 'silver', inventory: 15 }
+    ],
+    tags: ['smartwatch', 'fitness', 'wearable'],
+    isInStock: true,
+    isFeatured: true
   }
 ];
 
-// Sample users data
+// Sample user data (with hashed passwords in a real scenario)
 const users = [
   {
-    id: 'user_1',
-    email: 'john.doe@example.com',
+    email: 'customer@example.com',
+    password: 'password123', // In real scenario, this would be hashed
     firstName: 'John',
     lastName: 'Doe',
-    passwordHash: 'hashed_password_here', // In a real app, this would be bcrypt hashed
-    addresses: [
-      {
-        id: 'addr_1',
-        firstName: 'John',
-        lastName: 'Doe',
-        street: '123 Main St',
-        city: 'San Francisco',
-        state: 'CA',
-        zipCode: '94105',
-        country: 'US',
-        isDefault: true
-      }
-    ]
-  }
-];
-
-// Sample orders data
-const orders = [
+    role: 'customer'
+  },
   {
-    id: 'ord_1',
-    userId: 'user_1',
-    date: new Date('2025-01-15').toISOString(),
-    items: [
-      {
-        productId: 'prod_1',
-        name: 'Premium Headphones',
-        price: 249.99,
-        quantity: 1,
-        image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500&q=80'
-      }
-    ],
-    shipping: {
-      address: {
-        firstName: 'John',
-        lastName: 'Doe',
-        street: '123 Main St',
-        city: 'San Francisco',
-        state: 'CA',
-        zipCode: '94105',
-        country: 'US'
-      },
-      method: 'Standard Shipping',
-      cost: 5.99,
-      estimatedDelivery: '01/20/2025'
-    },
-    billing: {
-      address: {
-        firstName: 'John',
-        lastName: 'Doe',
-        street: '123 Main St',
-        city: 'San Francisco',
-        state: 'CA',
-        zipCode: '94105',
-        country: 'US'
-      },
-      paymentMethod: 'credit_card',
-      lastFourDigits: '4242'
-    },
-    totals: {
-      subtotal: 249.99,
-      tax: 24.99,
-      shipping: 5.99,
-      total: 280.97
-    },
-    status: 'delivered',
-    statusHistory: [
-      {
-        status: 'processing',
-        timestamp: new Date('2025-01-15').toISOString(),
-        note: 'Order received'
-      },
-      {
-        status: 'shipped',
-        timestamp: new Date('2025-01-16').toISOString(),
-        note: 'Order shipped via USPS'
-      },
-      {
-        status: 'delivered',
-        timestamp: new Date('2025-01-19').toISOString(),
-        note: 'Package delivered'
-      }
-    ]
+    email: 'admin@example.com',
+    password: 'admin123', // In real scenario, this would be hashed
+    firstName: 'Admin',
+    lastName: 'User',
+    role: 'admin'
   }
 ];
 
-// Function to seed the database
-const seedDatabase = async () => {
+async function seedDatabase() {
   try {
     // Connect to MongoDB
-    await connectDB();
-    console.log('Connected to MongoDB for seeding');
+    await mongoose.connect(MONGO_URI);
+    console.log('Connected to MongoDB...');
     
-    // For a real app, you would create MongoDB models and use them to seed the data
-    // For this mock backend, we're just logging the sample data
-    console.log('Seeding would insert the following data:');
-    console.log(`- ${products.length} products`);
-    console.log(`- ${users.length} users`);
-    console.log(`- ${orders.length} orders`);
+    // Clear existing data (optional)
+    await Product.deleteMany({});
+    console.log('Products collection cleared');
     
-    console.log('Sample data ready for use in the mock API');
+    // Insert products
+    const insertedProducts = await Product.insertMany(products);
+    console.log(`${insertedProducts.length} products seeded successfully!`);
     
-    // Disconnect from MongoDB
-    await mongoose.disconnect();
-    console.log('Disconnected from MongoDB');
+    // Clear existing users (be careful in production!)
+    await User.deleteMany({});
+    console.log('Users collection cleared');
     
+    // Insert users
+    const insertedUsers = await User.insertMany(users);
+    console.log(`${insertedUsers.length} users seeded successfully!`);
+    
+    console.log('Database seeding completed!');
   } catch (error) {
     console.error('Error seeding database:', error);
-    process.exit(1);
+  } finally {
+    // Disconnect from the database
+    await mongoose.disconnect();
+    console.log('Disconnected from MongoDB');
   }
-};
+}
 
-// Run the seeding function
+// Execute the seeding function
 seedDatabase(); 

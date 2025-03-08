@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { body } from 'express-validator';
 import { authController } from '../controllers/auth.controller';
 import { protect, validate } from '../middleware';

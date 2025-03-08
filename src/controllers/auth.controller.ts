@@ -1,9 +1,9 @@
 import { Request, Response, NextFunction } from 'express';
-import jwt, { SignOptions } from 'jsonwebtoken';
+import jwt from 'jsonwebtoken';
 import { ApiResponse, BaseController } from './base.controller';
 import User from '../models/user.model';
-import { IUserDocument, IUserRegistrationPayload } from '../models/interfaces';
-import { UserPayload } from '../middleware/auth.middleware';
+import { IUserDocument, IUserRegistrationPayload } from '../models/interfaces/user.interface';
+import { UserPayload } from '../types';
 
 /**
  * Authentication controller responsible for user registration, login, and session management
@@ -30,51 +30,60 @@ export class AuthController extends BaseController {
       role: 'customer'
     });
     
+    const userDoc = user as IUserDocument;
+    
     // Generate JWT token
-    const token = this.generateToken({
-      id: user._id.toString(),
-      email: user.email,
-      role: user.role
-    });
+    const token = jwt.sign(
+      {
+        id: userDoc._id.toString(),
+        email: userDoc.email,
+        role: userDoc.role
+      },
+      process.env.JWT_SECRET || 'secret',
+      { expiresIn: '30d' }
+    );
     
     // Send response
     return this.sendCreated(res, {
       user: {
-        id: user._id.toString(),
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        role: user.role
+        id: userDoc._id.toString(),
+        email: userDoc.email,
+        firstName: userDoc.firstName,
+        lastName: userDoc.lastName,
+        role: userDoc.role
       },
       token
     }, 'User registered successfully');
   });
-  
+
   /**
-   * Login user and generate JWT token
+   * Login user and get token
    */
   login = this.catchAsync(async (req: Request, res: Response, next: NextFunction): Promise<Response<ApiResponse> | void> => {
     const { email, password } = req.body;
     
-    // Check if email and password exist
-    if (!email || !password) {
-      return this.sendError(next, 'Please provide email and password', 400);
+    // Check if user exists
+    const user = await User.findOne({ email }) as IUserDocument | null;
+    if (!user) {
+      return this.sendError(next, 'Invalid credentials', 401);
     }
     
-    // Find user with password (explicitly include password for comparison)
-    const user = await User.findOne({ email }).select('+password');
-    
-    // Check if user exists and password is correct
-    if (!user || !(await user.comparePassword(password))) {
-      return this.sendError(next, 'Incorrect email or password', 401);
+    // Check if password is correct
+    const isPasswordValid = await user.comparePassword(password);
+    if (!isPasswordValid) {
+      return this.sendError(next, 'Invalid credentials', 401);
     }
     
     // Generate JWT token
-    const token = this.generateToken({
-      id: user._id.toString(),
-      email: user.email,
-      role: user.role
-    });
+    const token = jwt.sign(
+      {
+        id: user._id.toString(),
+        email: user.email,
+        role: user.role
+      },
+      process.env.JWT_SECRET || 'secret',
+      { expiresIn: '30d' }
+    );
     
     // Send response
     return this.sendSuccess(res, {
@@ -88,24 +97,22 @@ export class AuthController extends BaseController {
       token
     }, 'Login successful');
   });
-  
+
   /**
-   * Get current user profile
+   * Get user profile
    */
   getProfile = this.catchAsync(async (req: Request, res: Response, next: NextFunction): Promise<Response<ApiResponse> | void> => {
-    // User should be available from the protect middleware
     if (!req.user || !req.user.id) {
-      return this.sendError(next, 'Not authenticated', 401);
+      return this.sendError(next, 'User not found', 404);
     }
     
-    // Get user details
-    const user = await User.findById(req.user.id);
-    
+    // Get user from database
+    const user = await User.findById(req.user.id).select('-password') as IUserDocument | null;
     if (!user) {
       return this.sendError(next, 'User not found', 404);
     }
     
-    // Send user profile
+    // Send response
     return this.sendSuccess(res, {
       id: user._id.toString(),
       email: user.email,
@@ -113,33 +120,16 @@ export class AuthController extends BaseController {
       lastName: user.lastName,
       role: user.role,
       addresses: user.addresses || []
-    }, 'User profile retrieved successfully');
+    }, 'User profile found');
   });
-  
+
   /**
    * Logout user (client-side)
    */
-  logout = (req: Request, res: Response): Response<ApiResponse> => {
+  logout = this.catchAsync(async (req: Request, res: Response): Promise<Response<ApiResponse>> => {
     // JWT is stateless, so this is mostly for clearing cookies if used
     return this.sendSuccess(res, null, 'Logged out successfully');
-  };
-  
-  /**
-   * Generate a JWT token
-   */
-  private generateToken(payload: Omit<UserPayload, 'iat' | 'exp'>): string {
-    const secret = process.env.JWT_SECRET || 'your-jwt-secret';
-    const expiresIn = process.env.JWT_EXPIRES_IN || '30d';
-    
-    // Fix for TypeScript error in JWT sign function parameters
-    const options: SignOptions = { expiresIn };
-    
-    return jwt.sign(
-      payload,
-      secret,
-      options
-    );
-  }
+  });
 }
 
 // Export a singleton instance

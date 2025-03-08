@@ -115,6 +115,7 @@ export const loggerMiddleware = (req: Request, res: Response, next: NextFunction
   
   // Override the end method to log response info
   res.end = function(
+    this: Response,
     chunkOrCb?: any, 
     encodingOrCb?: BufferEncoding | (() => void),
     cb?: (() => void)
@@ -132,7 +133,7 @@ export const loggerMiddleware = (req: Request, res: Response, next: NextFunction
     };
     
     // For non-success responses, try to capture more details
-    if (res.statusCode >= 400 && typeof chunkOrCb === 'string' || Buffer.isBuffer(chunkOrCb)) {
+    if (res.statusCode >= 400 && (typeof chunkOrCb === 'string' || Buffer.isBuffer(chunkOrCb))) {
       try {
         const body = JSON.parse(chunkOrCb.toString('utf8'));
         responseInfo.data = formatResponseData(body);
@@ -151,21 +152,9 @@ export const loggerMiddleware = (req: Request, res: Response, next: NextFunction
       }
     }
     
-    // Call the original end method with the right parameters
-    if (typeof encodingOrCb === 'function') {
-      // Handle case where encodingOrCb is actually the callback
-      return originalEnd.call(this, chunkOrCb, encodingOrCb);
-    } else if (typeof chunkOrCb === 'undefined') {
-      // Handle case where no arguments are provided
-      return originalEnd.call(this);
-    } else if (typeof encodingOrCb === 'undefined') {
-      // Handle case where only chunk is provided
-      return originalEnd.call(this, chunkOrCb);
-    } else {
-      // Handle case where all arguments are provided
-      return originalEnd.call(this, chunkOrCb, encodingOrCb, cb);
-    }
-  };
+    // Call the original end method
+    return originalEnd.apply(this, [chunkOrCb, encodingOrCb, cb].filter(Boolean) as any);
+  } as ResponseEndMethod;
   
   next();
 }; 
