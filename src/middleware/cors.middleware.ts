@@ -31,7 +31,8 @@ export const corsHeadersMiddleware = (req: Request, res: Response, next: NextFun
   // Handle preflight requests (OPTIONS)
   if (req.method === 'OPTIONS') {
     console.log('[CORS] Handling OPTIONS preflight request');
-    return res.status(200).end();
+    res.status(200).end();
+    return;
   }
   
   next();

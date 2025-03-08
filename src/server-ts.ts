@@ -43,6 +43,33 @@ app.use(cookieParser()); // Parse cookies
 app.use(compression()); // Compress responses
 app.use(loggerMiddleware); // Log requests and responses
 
+// Root-level CORS test endpoint that bypasses the router
+app.get('/test-cors', (req, res) => {
+  // Add all CORS headers directly to this response
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  
+  res.json({
+    success: true,
+    message: 'Direct CORS test endpoint successful',
+    origin: req.headers.origin || 'No origin',
+    timestamp: new Date().toISOString(),
+    host: req.hostname,
+    method: req.method,
+    path: req.path,
+    ip: req.ip,
+    headers: {
+      request: req.headers,
+      response: {
+        'Access-Control-Allow-Origin': res.getHeader('Access-Control-Allow-Origin'),
+        'Access-Control-Allow-Methods': res.getHeader('Access-Control-Allow-Methods'),
+        'Access-Control-Allow-Headers': res.getHeader('Access-Control-Allow-Headers')
+      }
+    }
+  });
+});
+
 // Special handler for CORS issues
 app.use('/api/cors-test', (req, res) => {
   res.json({ 
