@@ -4,6 +4,7 @@
   "main": "deploy-bypass.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
+    "test:integration": "ts-node scripts/test-integration.ts",
     "build": "tsc",
     "build:fallback": "node scripts/deploy-fallback.js",
     "start": "node deploy-bypass.js",
