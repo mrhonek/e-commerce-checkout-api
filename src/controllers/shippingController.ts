@@ -101,7 +101,7 @@ export const validateAddress = (req: Request, res: Response) => {
       }
     });
   } catch (error) {
-    res.status(500).json({ message: 'Failed to validate address' });
+    res.status(500).json({ message: 'Error validating address' });
   }
 };
 
