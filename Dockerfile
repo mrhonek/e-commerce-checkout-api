@@ -53,6 +53,7 @@ RUN echo "const express = require('express');" > src/server-ts.ts && \
     echo "        description: String," >> src/server-ts.ts && \
     echo "        price: Number," >> src/server-ts.ts && \
     echo "        image: String," >> src/server-ts.ts && \
+    echo "        images: [String]," >> src/server-ts.ts && \
     echo "        category: String," >> src/server-ts.ts && \
     echo "        isFeatured: Boolean," >> src/server-ts.ts && \
     echo "        featured: Boolean," >> src/server-ts.ts && \
@@ -64,12 +65,76 @@ RUN echo "const express = require('express');" > src/server-ts.ts && \
     echo "      }, { timestamps: true });" >> src/server-ts.ts && \
     echo "      Product = mongoose.model('Product', ProductSchema);" >> src/server-ts.ts && \
     echo "    }" >> src/server-ts.ts && \
-    echo "    const products = await Product.find();" >> src/server-ts.ts && \
+    echo "    let products = await Product.find();" >> src/server-ts.ts && \
+    echo "" >> src/server-ts.ts && \
+    echo "    // Process and enrich products" >> src/server-ts.ts && \
+    echo "    products = products.map(product => {" >> src/server-ts.ts && \
+    echo "      // Convert to plain object for modification" >> src/server-ts.ts && \
+    echo "      const p = product.toObject ? product.toObject() : product;" >> src/server-ts.ts && \
+    echo "" >> src/server-ts.ts && \
+    echo "      // Ensure products are marked as in stock" >> src/server-ts.ts && \
+    echo "      p.inStock = true;" >> src/server-ts.ts && \
+    echo "      p.stock = p.stock || 10;" >> src/server-ts.ts && \
+    echo "" >> src/server-ts.ts && \
+    echo "      // Fix image paths" >> src/server-ts.ts && \
+    echo "      if (p.image && !p.image.startsWith('http')) {" >> src/server-ts.ts && \
+    echo "        p.image = 'https://picsum.photos/id/' + (Math.floor(Math.random() * 100) + 1) + '/400/400';" >> src/server-ts.ts && \
+    echo "      }" >> src/server-ts.ts && \
+    echo "" >> src/server-ts.ts && \
+    echo "      // Ensure images array exists" >> src/server-ts.ts && \
+    echo "      if (!p.images || !Array.isArray(p.images) || p.images.length === 0) {" >> src/server-ts.ts && \
+    echo "        p.images = [p.image || 'https://picsum.photos/id/1/400/400'];" >> src/server-ts.ts && \
+    echo "      }" >> src/server-ts.ts && \
+    echo "" >> src/server-ts.ts && \
+    echo "      return p;" >> src/server-ts.ts && \
+    echo "    });" >> src/server-ts.ts && \
+    echo "" >> src/server-ts.ts && \
     echo "    console.log('Found products:', products.length);" >> src/server-ts.ts && \
     echo "    res.json(products);" >> src/server-ts.ts && \
     echo "  } catch (error) {" >> src/server-ts.ts && \
     echo "    console.error('Error fetching products:', error);" >> src/server-ts.ts && \
     echo "    res.status(500).json({ error: 'Failed to fetch products' });" >> src/server-ts.ts && \
+    echo "  }" >> src/server-ts.ts && \
+    echo "});" >> src/server-ts.ts && \
+    echo "" >> src/server-ts.ts && \
+    echo "// Get single product by ID" >> src/server-ts.ts && \
+    echo "app.get('/api/products/:id', async (req, res) => {" >> src/server-ts.ts && \
+    echo "  try {" >> src/server-ts.ts && \
+    echo "    const productId = req.params.id;" >> src/server-ts.ts && \
+    echo "    console.log('Getting product with ID:', productId);" >> src/server-ts.ts && \
+    echo "" >> src/server-ts.ts && \
+    echo "    let Product;" >> src/server-ts.ts && \
+    echo "    try {" >> src/server-ts.ts && \
+    echo "      Product = mongoose.model('Product');" >> src/server-ts.ts && \
+    echo "    } catch (e) {" >> src/server-ts.ts && \
+    echo "      return res.status(404).json({ error: 'Product not found' });" >> src/server-ts.ts && \
+    echo "    }" >> src/server-ts.ts && \
+    echo "" >> src/server-ts.ts && \
+    echo "    const product = await Product.findById(productId);" >> src/server-ts.ts && \
+    echo "" >> src/server-ts.ts && \
+    echo "    if (!product) {" >> src/server-ts.ts && \
+    echo "      return res.status(404).json({ error: 'Product not found' });" >> src/server-ts.ts && \
+    echo "    }" >> src/server-ts.ts && \
+    echo "" >> src/server-ts.ts && \
+    echo "    // Process product data" >> src/server-ts.ts && \
+    echo "    const p = product.toObject ? product.toObject() : product;" >> src/server-ts.ts && \
+    echo "    p.inStock = true;" >> src/server-ts.ts && \
+    echo "    p.stock = p.stock || 10;" >> src/server-ts.ts && \
+    echo "" >> src/server-ts.ts && \
+    echo "    // Fix image paths" >> src/server-ts.ts && \
+    echo "    if (p.image && !p.image.startsWith('http')) {" >> src/server-ts.ts && \
+    echo "      p.image = 'https://picsum.photos/id/' + (Math.floor(Math.random() * 100) + 1) + '/400/400';" >> src/server-ts.ts && \
+    echo "    }" >> src/server-ts.ts && \
+    echo "" >> src/server-ts.ts && \
+    echo "    // Ensure images array exists" >> src/server-ts.ts && \
+    echo "    if (!p.images || !Array.isArray(p.images) || p.images.length === 0) {" >> src/server-ts.ts && \
+    echo "      p.images = [p.image || 'https://picsum.photos/id/1/400/400'];" >> src/server-ts.ts && \
+    echo "    }" >> src/server-ts.ts && \
+    echo "" >> src/server-ts.ts && \
+    echo "    res.json(p);" >> src/server-ts.ts && \
+    echo "  } catch (error) {" >> src/server-ts.ts && \
+    echo "    console.error('Error fetching product:', error);" >> src/server-ts.ts && \
+    echo "    res.status(500).json({ error: 'Failed to fetch product' });" >> src/server-ts.ts && \
     echo "  }" >> src/server-ts.ts && \
     echo "});" >> src/server-ts.ts && \
     echo "" >> src/server-ts.ts && \
