@@ -1,18 +1,58 @@
+// Ultra-simplified Express server for deployment testing
 const express = require('express');
-const path = require('path');
+const cors = require('cors');
+
 const app = express();
-const port = 3002;
+const port = process.env.PORT || 8080;
 
-// Serve static files from the current directory
-app.use(express.static(__dirname));
+// Debug output
+console.log('=== STARTING SERVER ===');
+console.log('Current directory:', __dirname);
+console.log('Files in directory:');
+try {
+  require('fs').readdirSync(__dirname).forEach(file => {
+    console.log(' - ' + file);
+  });
+} catch (err) {
+  console.error('Error listing files:', err);
+}
+console.log('=======================');
 
-// Route for the home page
+// Middleware
+app.use(cors());
+app.use(express.json());
+
+// Health check endpoint
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'test-api.html'));
+  res.send('API is running');
+});
+
+app.get('/api/health', (req, res) => {
+  res.status(200).json({ 
+    status: 'ok', 
+    message: 'Simple API running',
+    environment: process.env.NODE_ENV || 'development'
+  });
+});
+
+// Simple products endpoint
+app.get('/api/products', (req, res) => {
+  console.log('GET /api/products');
+  
+  // Return a mock product
+  const mockProducts = [
+    { 
+      _id: "prod1", 
+      name: "Office Chair", 
+      price: 249.99, 
+      isFeatured: true, 
+      imageUrl: "https://via.placeholder.com/400x300/3498db/ffffff?text=Office+Chair" 
+    }
+  ];
+  res.json(mockProducts);
 });
 
 // Start the server
 app.listen(port, () => {
-  console.log(`Test server running at http://localhost:${port}`);
-  console.log(`Open http://localhost:${port} in your browser to test the API`);
+  console.log(`Server running on port ${port}`);
 }); 
