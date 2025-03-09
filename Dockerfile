@@ -32,6 +32,45 @@ RUN echo "const express = require('express');" > src/server-ts.ts && \
     echo "  .then(() => console.log('Connected to MongoDB'))" >> src/server-ts.ts && \
     echo "  .catch(err => console.error('MongoDB connection error:', err));" >> src/server-ts.ts && \
     echo "" >> src/server-ts.ts && \
+    echo "// Helper functions for image processing" >> src/server-ts.ts && \
+    echo "function getPlaceholderImage(index = 0) {" >> src/server-ts.ts && \
+    echo "  // Use deterministic IDs based on index to ensure consistent images" >> src/server-ts.ts && \
+    echo "  const imageIds = [11, 26, 20, 64, 65, 67, 103, 104, 106, 119];" >> src/server-ts.ts && \
+    echo "  const id = imageIds[index % imageIds.length];" >> src/server-ts.ts && \
+    echo "  return \`https://picsum.photos/id/\${id}/400/400\`;" >> src/server-ts.ts && \
+    echo "}" >> src/server-ts.ts && \
+    echo "" >> src/server-ts.ts && \
+    echo "function processProductImages(product, index = 0) {" >> src/server-ts.ts && \
+    echo "  // Convert to plain object if it's a Mongoose document" >> src/server-ts.ts && \
+    echo "  const p = product.toObject ? product.toObject() : { ...product };" >> src/server-ts.ts && \
+    echo "" >> src/server-ts.ts && \
+    echo "  // Ensure the main image path is valid" >> src/server-ts.ts && \
+    echo "  if (!p.image || !p.image.startsWith('http')) {" >> src/server-ts.ts && \
+    echo "    p.image = getPlaceholderImage(index);" >> src/server-ts.ts && \
+    echo "  }" >> src/server-ts.ts && \
+    echo "" >> src/server-ts.ts && \
+    echo "  // Create images array with valid URLs if needed" >> src/server-ts.ts && \
+    echo "  if (!p.images || !Array.isArray(p.images) || p.images.length === 0) {" >> src/server-ts.ts && \
+    echo "    // Create an array of 3 images based on the main image" >> src/server-ts.ts && \
+    echo "    p.images = [" >> src/server-ts.ts && \
+    echo "      p.image," >> src/server-ts.ts && \
+    echo "      getPlaceholderImage(index + 1)," >> src/server-ts.ts && \
+    echo "      getPlaceholderImage(index + 2)" >> src/server-ts.ts && \
+    echo "    ];" >> src/server-ts.ts && \
+    echo "  } else {" >> src/server-ts.ts && \
+    echo "    // Fix any invalid URLs in the existing images array" >> src/server-ts.ts && \
+    echo "    p.images = p.images.map((img, i) => {" >> src/server-ts.ts && \
+    echo "      return img && img.startsWith('http') ? img : getPlaceholderImage(index + i);" >> src/server-ts.ts && \
+    echo "    });" >> src/server-ts.ts && \
+    echo "  }" >> src/server-ts.ts && \
+    echo "" >> src/server-ts.ts && \
+    echo "  // Ensure product has inStock flag set to true" >> src/server-ts.ts && \
+    echo "  p.inStock = true;" >> src/server-ts.ts && \
+    echo "  p.stock = p.stock || 10;" >> src/server-ts.ts && \
+    echo "" >> src/server-ts.ts && \
+    echo "  return p;" >> src/server-ts.ts && \
+    echo "}" >> src/server-ts.ts && \
+    echo "" >> src/server-ts.ts && \
     echo "// Middleware" >> src/server-ts.ts && \
     echo "app.use(cors());" >> src/server-ts.ts && \
     echo "app.use(express.json());" >> src/server-ts.ts && \
@@ -68,26 +107,7 @@ RUN echo "const express = require('express');" > src/server-ts.ts && \
     echo "    let products = await Product.find();" >> src/server-ts.ts && \
     echo "" >> src/server-ts.ts && \
     echo "    // Process and enrich products" >> src/server-ts.ts && \
-    echo "    products = products.map(product => {" >> src/server-ts.ts && \
-    echo "      // Convert to plain object for modification" >> src/server-ts.ts && \
-    echo "      const p = product.toObject ? product.toObject() : product;" >> src/server-ts.ts && \
-    echo "" >> src/server-ts.ts && \
-    echo "      // Ensure products are marked as in stock" >> src/server-ts.ts && \
-    echo "      p.inStock = true;" >> src/server-ts.ts && \
-    echo "      p.stock = p.stock || 10;" >> src/server-ts.ts && \
-    echo "" >> src/server-ts.ts && \
-    echo "      // Fix image paths" >> src/server-ts.ts && \
-    echo "      if (p.image && !p.image.startsWith('http')) {" >> src/server-ts.ts && \
-    echo "        p.image = 'https://picsum.photos/id/' + (Math.floor(Math.random() * 100) + 1) + '/400/400';" >> src/server-ts.ts && \
-    echo "      }" >> src/server-ts.ts && \
-    echo "" >> src/server-ts.ts && \
-    echo "      // Ensure images array exists" >> src/server-ts.ts && \
-    echo "      if (!p.images || !Array.isArray(p.images) || p.images.length === 0) {" >> src/server-ts.ts && \
-    echo "        p.images = [p.image || 'https://picsum.photos/id/1/400/400'];" >> src/server-ts.ts && \
-    echo "      }" >> src/server-ts.ts && \
-    echo "" >> src/server-ts.ts && \
-    echo "      return p;" >> src/server-ts.ts && \
-    echo "    });" >> src/server-ts.ts && \
+    echo "    products = products.map((product, index) => processProductImages(product, index));" >> src/server-ts.ts && \
     echo "" >> src/server-ts.ts && \
     echo "    console.log('Found products:', products.length);" >> src/server-ts.ts && \
     echo "    res.json(products);" >> src/server-ts.ts && \
@@ -116,22 +136,9 @@ RUN echo "const express = require('express');" > src/server-ts.ts && \
     echo "      return res.status(404).json({ error: 'Product not found' });" >> src/server-ts.ts && \
     echo "    }" >> src/server-ts.ts && \
     echo "" >> src/server-ts.ts && \
-    echo "    // Process product data" >> src/server-ts.ts && \
-    echo "    const p = product.toObject ? product.toObject() : product;" >> src/server-ts.ts && \
-    echo "    p.inStock = true;" >> src/server-ts.ts && \
-    echo "    p.stock = p.stock || 10;" >> src/server-ts.ts && \
-    echo "" >> src/server-ts.ts && \
-    echo "    // Fix image paths" >> src/server-ts.ts && \
-    echo "    if (p.image && !p.image.startsWith('http')) {" >> src/server-ts.ts && \
-    echo "      p.image = 'https://picsum.photos/id/' + (Math.floor(Math.random() * 100) + 1) + '/400/400';" >> src/server-ts.ts && \
-    echo "    }" >> src/server-ts.ts && \
-    echo "" >> src/server-ts.ts && \
-    echo "    // Ensure images array exists" >> src/server-ts.ts && \
-    echo "    if (!p.images || !Array.isArray(p.images) || p.images.length === 0) {" >> src/server-ts.ts && \
-    echo "      p.images = [p.image || 'https://picsum.photos/id/1/400/400'];" >> src/server-ts.ts && \
-    echo "    }" >> src/server-ts.ts && \
-    echo "" >> src/server-ts.ts && \
-    echo "    res.json(p);" >> src/server-ts.ts && \
+    echo "    // Process product data with image enhancement" >> src/server-ts.ts && \
+    echo "    const processedProduct = processProductImages(product);" >> src/server-ts.ts && \
+    echo "    res.json(processedProduct);" >> src/server-ts.ts && \
     echo "  } catch (error) {" >> src/server-ts.ts && \
     echo "    console.error('Error fetching product:', error);" >> src/server-ts.ts && \
     echo "    res.status(500).json({ error: 'Failed to fetch product' });" >> src/server-ts.ts && \
@@ -176,7 +183,8 @@ RUN echo "const express = require('express');" > src/server-ts.ts && \
     echo "      name," >> src/server-ts.ts && \
     echo "      price," >> src/server-ts.ts && \
     echo "      quantity," >> src/server-ts.ts && \
-    echo "      image" >> src/server-ts.ts && \
+    echo "      // Make sure image has a valid URL" >> src/server-ts.ts && \
+    echo "      image: image && image.startsWith('http') ? image : getPlaceholderImage(cartItems.length)" >> src/server-ts.ts && \
     echo "    });" >> src/server-ts.ts && \
     echo "  }" >> src/server-ts.ts && \
     echo "" >> src/server-ts.ts && \
