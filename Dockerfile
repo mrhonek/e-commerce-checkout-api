@@ -81,6 +81,18 @@ RUN echo "const express = require('express');" > src/server-ts.ts && \
     echo "app.use(cors());" >> src/server-ts.ts && \
     echo "app.use(express.json());" >> src/server-ts.ts && \
     echo "" >> src/server-ts.ts && \
+    echo "// Debug middleware to log all requests" >> src/server-ts.ts && \
+    echo "app.use((req, res, next) => {" >> src/server-ts.ts && \
+    echo "  console.log('Incoming request:', {" >> src/server-ts.ts && \
+    echo "    method: req.method," >> src/server-ts.ts && \
+    echo "    path: req.path," >> src/server-ts.ts && \
+    echo "    body: req.body," >> src/server-ts.ts && \
+    echo "    params: req.params," >> src/server-ts.ts && \
+    echo "    cartSize: cartItems.length" >> src/server-ts.ts && \
+    echo "  });" >> src/server-ts.ts && \
+    echo "  next();" >> src/server-ts.ts && \
+    echo "});" >> src/server-ts.ts && \
+    echo "" >> src/server-ts.ts && \
     echo "// Routes" >> src/server-ts.ts && \
     echo "app.get('/api/health', (req, res) => {" >> src/server-ts.ts && \
     echo "  res.json({ status: 'ok' });" >> src/server-ts.ts && \
@@ -159,7 +171,10 @@ RUN echo "const express = require('express');" > src/server-ts.ts && \
     echo "app.get('/api/cart', (req, res) => {" >> src/server-ts.ts && \
     echo "  console.log('Cart requested, current items:', JSON.stringify(cartItems, null, 2));" >> src/server-ts.ts && \
     echo "  const cart = {" >> src/server-ts.ts && \
-    echo "    items: cartItems," >> src/server-ts.ts && \
+    echo "    items: cartItems.map(item => ({" >> src/server-ts.ts && \
+    echo "      ...item," >> src/server-ts.ts && \
+    echo "      id: item.itemId // Ensure frontend has the correct ID" >> src/server-ts.ts && \
+    echo "    }))," >> src/server-ts.ts && \
     echo "    subtotal: calculateSubtotal(cartItems)," >> src/server-ts.ts && \
     echo "    tax: calculateTax(cartItems)," >> src/server-ts.ts && \
     echo "    total: calculateTotal(cartItems)" >> src/server-ts.ts && \
@@ -195,6 +210,7 @@ RUN echo "const express = require('express');" > src/server-ts.ts && \
     echo "    } else {" >> src/server-ts.ts && \
     echo "      // Add new item if it doesn't exist" >> src/server-ts.ts && \
     echo "      const newItem = {" >> src/server-ts.ts && \
+    echo "        id: itemId, // Add id field for frontend compatibility" >> src/server-ts.ts && \
     echo "        productId: normalizedProductId," >> src/server-ts.ts && \
     echo "        itemId: itemId," >> src/server-ts.ts && \
     echo "        name," >> src/server-ts.ts && \
@@ -211,11 +227,14 @@ RUN echo "const express = require('express');" > src/server-ts.ts && \
     echo "" >> src/server-ts.ts && \
     echo "    // Return updated cart with the item that was added/updated" >> src/server-ts.ts && \
     echo "    const updatedCart = {" >> src/server-ts.ts && \
-    echo "      items: cartItems," >> src/server-ts.ts && \
+    echo "      items: cartItems.map(item => ({" >> src/server-ts.ts && \
+    echo "        ...item," >> src/server-ts.ts && \
+    echo "        id: item.itemId // Ensure frontend has the correct ID" >> src/server-ts.ts && \
+    echo "      }))," >> src/server-ts.ts && \
     echo "      subtotal: calculateSubtotal(cartItems)," >> src/server-ts.ts && \
     echo "      tax: calculateTax(cartItems)," >> src/server-ts.ts && \
     echo "      total: calculateTotal(cartItems)," >> src/server-ts.ts && \
-    echo "      updatedItem: updatedItem" >> src/server-ts.ts && \
+    echo "      updatedItem: { ...updatedItem, id: updatedItem.itemId }" >> src/server-ts.ts && \
     echo "    };" >> src/server-ts.ts && \
     echo "    console.log('Returning updated cart:', JSON.stringify(updatedCart, null, 2));" >> src/server-ts.ts && \
     echo "    res.status(201).json(updatedCart);" >> src/server-ts.ts && \
