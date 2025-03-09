@@ -27,6 +27,43 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 8080;
 
+// Print environment variables (without sensitive values)
+console.log('=== ENVIRONMENT VARIABLES ===');
+console.log('NODE_ENV:', process.env.NODE_ENV);
+console.log('PORT:', process.env.PORT);
+console.log('MONGODB_URI exists:', !!process.env.MONGODB_URI);
+console.log('============================');
+
+// Connect to MongoDB - with retry logic
+let isConnected = false;
+const connectWithRetry = async (retries = 5, delay = 5000) => {
+  let currentTry = 0;
+  
+  while (currentTry < retries) {
+    try {
+      console.log(`Attempting to connect to MongoDB (attempt ${currentTry + 1}/${retries})`);
+      await db.connectDB();
+      isConnected = true;
+      console.log('Successfully connected to MongoDB!');
+      console.log('MongoDB connection state:', db.getConnectionStateMessage());
+      return;
+    } catch (error) {
+      console.error(`Connection attempt ${currentTry + 1} failed:`, error);
+      currentTry++;
+      
+      if (currentTry < retries) {
+        console.log(`Retrying in ${delay / 1000} seconds...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      } else {
+        console.error('All connection attempts failed. Using fallback data.');
+      }
+    }
+  }
+};
+
+// Start connection process
+connectWithRetry();
+
 // CORS configuration with permissive settings
 app.use(cors({
   origin: "*" // Allow all origins during development
@@ -102,6 +139,36 @@ const fallbackProducts = [
   }
 ];
 
+// Helper function to seed database
+const seedDatabase = async () => {
+  try {
+    console.log('Seeding database with fallback products...');
+    const result = await Product.insertMany(fallbackProducts);
+    console.log(`Successfully seeded database with ${result.length} products`);
+    return result;
+  } catch (error) {
+    console.error('Error seeding database:', error);
+    throw error;
+  }
+};
+
+// Helper function to check if database needs seeding
+const checkAndSeedDatabase = async () => {
+  try {
+    const count = await Product.countDocuments();
+    console.log(`Found ${count} products in database`);
+    
+    if (count === 0) {
+      return await seedDatabase();
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error checking database:', error);
+    throw error;
+  }
+};
+
 // In-memory cart storage (temporary until we implement MongoDB cart model)
 let cart = { items: [] };
 
@@ -110,7 +177,9 @@ let cart = { items: [] };
 app.get('/api/health', (req, res) => {
   res.status(200).json({ 
     status: 'ok', 
-    database: db.getConnectionStateMessage()
+    databaseStatus: db.getConnectionStateMessage(),
+    databaseConnected: isConnected,
+    environment: process.env.NODE_ENV || 'development'
   });
 });
 
@@ -118,13 +187,21 @@ app.get('/api/health', (req, res) => {
 app.get('/api/products', async (req, res) => {
   console.log('GET /api/products');
   try {
-    // Check database connection state first
-    const connectionState = db.getConnectionState();
-    console.log(`MongoDB connection state: ${db.getConnectionStateMessage()} (${connectionState})`);
+    // Check if we're connected to MongoDB
+    console.log(`MongoDB connection state: ${db.getConnectionStateMessage()} (${db.getConnectionState()})`);
+    console.log('isConnected flag:', isConnected);
     
-    if (connectionState !== 1) {
+    // If not connected to MongoDB or in dev mode with no DB, use fallback data
+    if (!isConnected || db.getConnectionState() !== 1) {
       console.log('MongoDB not connected. Using fallback products');
-      return res.json(fallbackProducts);
+      // Transform fallback products to match expected format
+      const mockedProducts = fallbackProducts.map((p, index) => ({
+        ...p,
+        _id: `prod${index + 1}`, // Explicitly set _id for frontend compatibility
+        imageUrl: p.images && p.images.length > 0 ? p.images[0] : undefined
+      }));
+      console.log('Returning mock products:', mockedProducts.length);
+      return res.json(mockedProducts);
     }
 
     // Attempt to get products from database
@@ -133,42 +210,67 @@ app.get('/api/products', async (req, res) => {
     
     // If no products in the database, seed the database with fallback products
     if (products.length === 0) {
-      console.log('No products found in database. Seeding with fallback products...');
       try {
-        await Product.insertMany(fallbackProducts);
-        console.log('Successfully seeded database with fallback products');
-        products = await Product.find();
-        console.log(`Now have ${products.length} products in database after seeding`);
+        const seededProducts = await seedDatabase();
+        if (seededProducts && seededProducts.length > 0) {
+          products = await Product.find(); // Fetch again after seeding
+          console.log(`Now have ${products.length} products in database after seeding`);
+        }
       } catch (seedError) {
-        console.error('Error seeding products:', seedError);
-        // Return fallback products directly if seeding fails
-        return res.json(fallbackProducts);
+        console.error('Error seeding database:', seedError);
+        // Return fallback products if seeding fails
+        const mockedProducts = fallbackProducts.map((p, index) => ({
+          ...p,
+          _id: `prod${index + 1}`,
+          imageUrl: p.images && p.images.length > 0 ? p.images[0] : undefined
+        }));
+        return res.json(mockedProducts);
       }
     }
     
     // Transform products for frontend compatibility
     const transformedProducts = products.map(product => {
-      // Convert Mongoose document to plain object
-      const productObj = product.toObject ? product.toObject() : product;
-      
-      // Ensure ID field is provided in the format frontend expects
-      const productWithId = {
-        ...productObj,
-        _id: productObj._id || productObj.id,
-        // Map images array to imageUrl if needed
-        imageUrl: productObj.images && productObj.images.length > 0 ? productObj.images[0] : undefined
-      };
-      
-      console.log(`Product: ${productWithId.name}, ID: ${productWithId._id}, Featured: ${productWithId.isFeatured}`);
-      return productWithId;
+      // Check if product is a Mongoose document or plain object
+      if (typeof product.toObject === 'function') {
+        // Convert Mongoose document to plain object
+        const productObj = product.toObject();
+        console.log('Product from DB (after toObject):', {
+          id: productObj._id,
+          name: productObj.name,
+          isFeatured: productObj.isFeatured
+        });
+        
+        return {
+          ...productObj,
+          imageUrl: productObj.images && productObj.images.length > 0 ? productObj.images[0] : undefined
+        };
+      } else {
+        // Already a plain object
+        console.log('Product from DB (plain object):', {
+          id: product._id,
+          name: product.name,
+          isFeatured: product.isFeatured
+        });
+        
+        return {
+          ...product,
+          imageUrl: product.images && product.images.length > 0 ? product.images[0] : undefined
+        };
+      }
     });
     
+    console.log(`Returning ${transformedProducts.length} products from database`);
     res.json(transformedProducts);
   } catch (error) {
     console.error('Error fetching products:', error);
     // Fall back to mock products in case of any error
     console.log('Returning fallback products due to error');
-    res.json(fallbackProducts);
+    const mockedProducts = fallbackProducts.map((p, index) => ({
+      ...p,
+      _id: `prod${index + 1}`,
+      imageUrl: p.images && p.images.length > 0 ? p.images[0] : undefined
+    }));
+    res.json(mockedProducts);
   }
 });
 
@@ -179,10 +281,17 @@ app.get('/api/products/featured', async (req, res) => {
     // Check database connection state first
     const connectionState = db.getConnectionState();
     console.log(`MongoDB connection state for featured products: ${db.getConnectionStateMessage()} (${connectionState})`);
+    console.log('isConnected flag for featured products:', isConnected);
     
-    if (connectionState !== 1) {
+    if (!isConnected || connectionState !== 1) {
       console.log('MongoDB not connected for featured products. Using fallback products');
-      const fallbackFeatured = fallbackProducts.filter(p => p.isFeatured);
+      const fallbackFeatured = fallbackProducts
+        .filter(p => p.isFeatured)
+        .map((p, index) => ({
+          ...p,
+          _id: `prod${index + 1}`,
+          imageUrl: p.images && p.images.length > 0 ? p.images[0] : undefined
+        }));
       return res.json(fallbackFeatured);
     }
     
@@ -199,27 +308,26 @@ app.get('/api/products/featured', async (req, res) => {
       
       if (totalProducts === 0) {
         // Database is empty, seed with fallback products
-        console.log('Database is empty. Seeding with fallback products...');
         try {
-          await Product.insertMany(fallbackProducts);
-          console.log('Successfully seeded database with fallback products');
+          const seededProducts = await seedDatabase();
           
-          // Try to get featured products again
-          const newFeaturedProducts = await Product.find({ isFeatured: true });
-          if (newFeaturedProducts.length > 0) {
+          if (seededProducts && seededProducts.length > 0) {
+            // Try to get featured products again
+            const newFeaturedProducts = await Product.find({ isFeatured: true });
             console.log(`Found ${newFeaturedProducts.length} featured products after seeding`);
             
-            // Transform for frontend compatibility
-            const transformedFeatured = newFeaturedProducts.map(product => {
-              const productObj = product.toObject ? product.toObject() : product;
-              return {
-                ...productObj,
-                _id: productObj._id || productObj.id,
-                imageUrl: productObj.images && productObj.images.length > 0 ? productObj.images[0] : undefined
-              };
-            });
-            
-            return res.json(transformedFeatured);
+            if (newFeaturedProducts.length > 0) {
+              // Transform for frontend compatibility
+              const transformedFeatured = newFeaturedProducts.map(product => {
+                const productObj = product.toObject ? product.toObject() : product;
+                return {
+                  ...productObj,
+                  imageUrl: productObj.images && productObj.images.length > 0 ? productObj.images[0] : undefined
+                };
+              });
+              
+              return res.json(transformedFeatured);
+            }
           }
         } catch (seedError) {
           console.error('Error seeding products for featured products:', seedError);
@@ -228,26 +336,43 @@ app.get('/api/products/featured', async (req, res) => {
       
       // If no featured products after seeding or if seeding failed, return featured products from fallback data
       console.log('Using fallback featured products');
-      const fallbackFeatured = fallbackProducts.filter(p => p.isFeatured);
+      const fallbackFeatured = fallbackProducts
+        .filter(p => p.isFeatured)
+        .map((p, index) => ({
+          ...p,
+          _id: `prod${index + 1}`,
+          imageUrl: p.images && p.images.length > 0 ? p.images[0] : undefined
+        }));
       return res.json(fallbackFeatured);
     }
     
     // Transform for frontend compatibility
     const transformedFeatured = featuredProducts.map(product => {
       const productObj = product.toObject ? product.toObject() : product;
+      console.log('Featured product from DB:', {
+        id: productObj._id,
+        name: productObj.name,
+        isFeatured: productObj.isFeatured
+      });
       return {
         ...productObj,
-        _id: productObj._id || productObj.id,
         imageUrl: productObj.images && productObj.images.length > 0 ? productObj.images[0] : undefined
       };
     });
     
+    console.log(`Returning ${transformedFeatured.length} featured products from database`);
     res.json(transformedFeatured);
   } catch (error) {
     console.error('Error fetching featured products:', error);
     // Return featured products from fallback data in case of any error
     console.log('Returning fallback featured products due to error');
-    const fallbackFeatured = fallbackProducts.filter(p => p.isFeatured);
+    const fallbackFeatured = fallbackProducts
+      .filter(p => p.isFeatured)
+      .map((p, index) => ({
+        ...p,
+        _id: `prod${index + 1}`,
+        imageUrl: p.images && p.images.length > 0 ? p.images[0] : undefined
+      }));
     res.json(fallbackFeatured);
   }
 });
@@ -255,14 +380,72 @@ app.get('/api/products/featured', async (req, res) => {
 // Get a product by ID
 app.get('/api/products/:id', async (req, res) => {
   console.log(`GET /api/products/${req.params.id}`);
+  
   try {
-    const product = await Product.findById(req.params.id);
-    if (!product) {
+    // Check database connection state first
+    const connectionState = db.getConnectionState();
+    console.log(`MongoDB connection state: ${db.getConnectionStateMessage()} (${connectionState})`);
+    
+    // If ID is in "prodN" format, it's likely a mock product ID
+    if (req.params.id.startsWith('prod')) {
+      console.log(`ID ${req.params.id} matches mock product format`);
+      const index = parseInt(req.params.id.substring(4)) - 1;
+      
+      if (index >= 0 && index < fallbackProducts.length) {
+        const mockProduct = {
+          ...fallbackProducts[index],
+          _id: req.params.id,
+          imageUrl: fallbackProducts[index].images && fallbackProducts[index].images.length > 0 
+            ? fallbackProducts[index].images[0] 
+            : undefined
+        };
+        console.log('Returning mock product:', mockProduct.name);
+        return res.json(mockProduct);
+      }
+    }
+    
+    // If not connected to MongoDB, return 404 (already checked for mock product)
+    if (!isConnected || connectionState !== 1) {
+      console.log('MongoDB not connected and ID does not match any mock product');
       return res.status(404).json({ error: 'Product not found' });
     }
-    res.json(product);
+    
+    // Try to find the product in the database
+    const product = await Product.findById(req.params.id);
+    if (!product) {
+      console.log(`Product with ID ${req.params.id} not found in database`);
+      return res.status(404).json({ error: 'Product not found' });
+    }
+    
+    // Convert to plain object for frontend compatibility
+    const productObj = product.toObject ? product.toObject() : product;
+    const transformedProduct = {
+      ...productObj,
+      imageUrl: productObj.images && productObj.images.length > 0 ? productObj.images[0] : undefined
+    };
+    
+    console.log('Returning product from database:', transformedProduct.name);
+    res.json(transformedProduct);
   } catch (error) {
     console.error(`Error fetching product ${req.params.id}:`, error);
+    
+    // Check if it might be a mock product ID
+    if (req.params.id.startsWith('prod')) {
+      const index = parseInt(req.params.id.substring(4)) - 1;
+      
+      if (index >= 0 && index < fallbackProducts.length) {
+        const mockProduct = {
+          ...fallbackProducts[index],
+          _id: req.params.id,
+          imageUrl: fallbackProducts[index].images && fallbackProducts[index].images.length > 0 
+            ? fallbackProducts[index].images[0] 
+            : undefined
+        };
+        console.log('Returning mock product after DB error:', mockProduct.name);
+        return res.json(mockProduct);
+      }
+    }
+    
     res.status(500).json({ error: 'Failed to fetch product' });
   }
 });
