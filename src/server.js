@@ -38,29 +38,19 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// MongoDB client helper
-async function connectToMongo() {
-  if (!process.env.MONGODB_URI) {
-    throw new Error('MONGODB_URI environment variable is not set');
-  }
-  
-  try {
-    const client = new MongoClient(process.env.MONGODB_URI);
-    await client.connect();
-    console.log('Successfully connected to MongoDB');
-    return client;
-  } catch (error) {
-    console.error('Failed to connect to MongoDB:', error);
-    throw error;
-  }
-}
-
 // Get all products
 app.get('/api/products', async (req, res) => {
   console.log('GET /api/products');
   
   try {
-    const client = await connectToMongo();
+    if (!process.env.MONGODB_URI) {
+      throw new Error('MONGODB_URI environment variable is not set');
+    }
+    
+    const client = new MongoClient(process.env.MONGODB_URI);
+    await client.connect();
+    console.log('Connected to MongoDB');
+    
     const db = client.db();
     const products = await db.collection('products').find().toArray();
     console.log(`Found ${products.length} products in database`);
@@ -84,12 +74,17 @@ app.get('/api/products', async (req, res) => {
   } catch (error) {
     console.error('Error fetching products:', error);
     
-    // Fallback to mock products for development/demo
+    // Fallback to a simple mock product
     const mockProducts = [
-      { _id: "prod1", name: "Office Chair", price: 249.99, isFeatured: true, imageUrl: "https://via.placeholder.com/400x300/3498db/ffffff?text=Office+Chair" },
-      { _id: "prod2", name: "Headphones", price: 199.99, isFeatured: true, imageUrl: "https://via.placeholder.com/400x300/e74c3c/ffffff?text=Headphones" }
+      { 
+        _id: "prod1", 
+        name: "Office Chair", 
+        price: 249.99, 
+        isFeatured: true, 
+        imageUrl: "https://via.placeholder.com/400x300/3498db/ffffff?text=Office+Chair" 
+      }
     ];
-    console.log('Returning mock products as fallback');
+    console.log('Returning mock product as fallback');
     res.json(mockProducts);
   }
 });
@@ -99,10 +94,16 @@ app.get('/api/products/featured', async (req, res) => {
   console.log('GET /api/products/featured');
   
   try {
-    const client = await connectToMongo();
+    if (!process.env.MONGODB_URI) {
+      throw new Error('MONGODB_URI environment variable is not set');
+    }
+    
+    const client = new MongoClient(process.env.MONGODB_URI);
+    await client.connect();
+    
     const db = client.db();
     const products = await db.collection('products').find({ isFeatured: true }).toArray();
-    console.log(`Found ${products.length} featured products in database`);
+    console.log(`Found ${products.length} featured products`);
     
     const transformedProducts = products.map(product => ({
       ...product,
@@ -115,9 +116,15 @@ app.get('/api/products/featured', async (req, res) => {
   } catch (error) {
     console.error('Error fetching featured products:', error);
     
-    // Fallback featured products
+    // Fallback featured product
     const mockFeatured = [
-      { _id: "prod1", name: "Office Chair", price: 249.99, isFeatured: true, imageUrl: "https://via.placeholder.com/400x300/3498db/ffffff?text=Office+Chair" }
+      { 
+        _id: "prod1", 
+        name: "Office Chair", 
+        price: 249.99, 
+        isFeatured: true, 
+        imageUrl: "https://via.placeholder.com/400x300/3498db/ffffff?text=Office+Chair" 
+      }
     ];
     res.json(mockFeatured);
   }
