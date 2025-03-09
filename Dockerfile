@@ -21,13 +21,256 @@ RUN echo '// Initialize app' >> /tmp/server.js
 RUN echo 'const app = express();' >> /tmp/server.js
 RUN echo 'const port = process.env.PORT || 8080;' >> /tmp/server.js
 RUN echo '' >> /tmp/server.js
+RUN echo '// Helper functions for image processing' >> /tmp/server.js
+RUN echo 'function getPlaceholderImage(index = 0) {' >> /tmp/server.js
+RUN echo '  const imageIds = [11, 26, 20, 64, 65, 67, 103, 104, 106, 119];' >> /tmp/server.js
+RUN echo '  const id = imageIds[index % imageIds.length];' >> /tmp/server.js
+RUN echo '  return `https://picsum.photos/id/${id}/400/400`;' >> /tmp/server.js
+RUN echo '}' >> /tmp/server.js
+RUN echo '' >> /tmp/server.js
+RUN echo 'function processProductImages(product, index = 0) {' >> /tmp/server.js
+RUN echo '  const p = product.toObject ? product.toObject() : { ...product };' >> /tmp/server.js
+RUN echo '  if (!p.image || !p.image.startsWith("http")) {' >> /tmp/server.js
+RUN echo '    p.image = getPlaceholderImage(index);' >> /tmp/server.js
+RUN echo '  }' >> /tmp/server.js
+RUN echo '  if (!p.images || !Array.isArray(p.images) || p.images.length === 0) {' >> /tmp/server.js
+RUN echo '    p.images = [' >> /tmp/server.js
+RUN echo '      p.image,' >> /tmp/server.js
+RUN echo '      getPlaceholderImage(index + 1),' >> /tmp/server.js
+RUN echo '      getPlaceholderImage(index + 2)' >> /tmp/server.js
+RUN echo '    ];' >> /tmp/server.js
+RUN echo '  } else {' >> /tmp/server.js
+RUN echo '    p.images = p.images.map((img, i) => {' >> /tmp/server.js
+RUN echo '      return img && img.startsWith("http") ? img : getPlaceholderImage(index + i);' >> /tmp/server.js
+RUN echo '    });' >> /tmp/server.js
+RUN echo '  }' >> /tmp/server.js
+RUN echo '  p.inStock = true;' >> /tmp/server.js
+RUN echo '  p.stock = p.stock || 10;' >> /tmp/server.js
+RUN echo '  return p;' >> /tmp/server.js
+RUN echo '}' >> /tmp/server.js
+RUN echo '' >> /tmp/server.js
+RUN echo 'function normalizeId(id) {' >> /tmp/server.js
+RUN echo '  if (!id) return "";' >> /tmp/server.js
+RUN echo '  return String(id).trim();' >> /tmp/server.js
+RUN echo '}' >> /tmp/server.js
+RUN echo '' >> /tmp/server.js
+RUN echo '// Helper functions for cart' >> /tmp/server.js
+RUN echo 'function calculateSubtotal(items) {' >> /tmp/server.js
+RUN echo '  return items.reduce((sum, item) => sum + (item.price * item.quantity), 0);' >> /tmp/server.js
+RUN echo '}' >> /tmp/server.js
+RUN echo '' >> /tmp/server.js
+RUN echo 'function calculateTax(items) {' >> /tmp/server.js
+RUN echo '  const subtotal = calculateSubtotal(items);' >> /tmp/server.js
+RUN echo '  return subtotal * 0.08; // 8% tax rate' >> /tmp/server.js
+RUN echo '}' >> /tmp/server.js
+RUN echo '' >> /tmp/server.js
+RUN echo 'function calculateTotal(items) {' >> /tmp/server.js
+RUN echo '  const subtotal = calculateSubtotal(items);' >> /tmp/server.js
+RUN echo '  const tax = calculateTax(items);' >> /tmp/server.js
+RUN echo '  return subtotal + tax;' >> /tmp/server.js
+RUN echo '}' >> /tmp/server.js
+RUN echo '' >> /tmp/server.js
+RUN echo '// Mock product data' >> /tmp/server.js
+RUN echo 'const mockProducts = [' >> /tmp/server.js
+RUN echo '  { _id: "1", id: "1", name: "Premium Headphones", price: 249.99, description: "High-quality wireless headphones with noise cancellation", image: "https://picsum.photos/id/11/400/400", category: "Electronics", isFeatured: true, rating: 4.5, reviews: 120, stock: 15, inStock: true },' >> /tmp/server.js
+RUN echo '  { _id: "2", id: "2", name: "Smart Watch", price: 199.99, description: "Feature-rich smartwatch with health tracking", image: "https://picsum.photos/id/26/400/400", category: "Electronics", isFeatured: true, rating: 4.3, reviews: 85, stock: 20, inStock: true },' >> /tmp/server.js
+RUN echo '  { _id: "3", id: "3", name: "Wireless Earbuds", price: 99.99, description: "Comfortable earbuds with great sound quality", image: "https://picsum.photos/id/20/400/400", category: "Electronics", isFeatured: true, rating: 4.0, reviews: 56, stock: 25, inStock: true },' >> /tmp/server.js
+RUN echo '  { _id: "4", id: "4", name: "Desktop Monitor", price: 349.99, description: "Ultra-wide curved monitor for immersive viewing", image: "https://picsum.photos/id/64/400/400", category: "Electronics", isFeatured: false, rating: 4.7, reviews: 42, stock: 10, inStock: true },' >> /tmp/server.js
+RUN echo '  { _id: "5", id: "5", name: "Mechanical Keyboard", price: 129.99, description: "Responsive mechanical keyboard for gaming", image: "https://picsum.photos/id/65/400/400", category: "Electronics", isFeatured: false, rating: 4.4, reviews: 35, stock: 18, inStock: true }' >> /tmp/server.js
+RUN echo '];' >> /tmp/server.js
+RUN echo '' >> /tmp/server.js
+RUN echo '// Cart storage' >> /tmp/server.js
+RUN echo 'let cartItems = [];' >> /tmp/server.js
+RUN echo '' >> /tmp/server.js
 RUN echo '// Middleware' >> /tmp/server.js
 RUN echo 'app.use(cors());' >> /tmp/server.js
 RUN echo 'app.use(express.json());' >> /tmp/server.js
 RUN echo '' >> /tmp/server.js
+RUN echo '// Debug middleware' >> /tmp/server.js
+RUN echo 'app.use((req, res, next) => {' >> /tmp/server.js
+RUN echo '  console.log("Incoming request:", {' >> /tmp/server.js
+RUN echo '    method: req.method,' >> /tmp/server.js
+RUN echo '    path: req.path,' >> /tmp/server.js
+RUN echo '    body: req.body,' >> /tmp/server.js
+RUN echo '    params: req.params,' >> /tmp/server.js
+RUN echo '    cartSize: cartItems.length' >> /tmp/server.js
+RUN echo '  });' >> /tmp/server.js
+RUN echo '  next();' >> /tmp/server.js
+RUN echo '});' >> /tmp/server.js
+RUN echo '' >> /tmp/server.js
 RUN echo '// Routes' >> /tmp/server.js
 RUN echo 'app.get("/api/health", (req, res) => {' >> /tmp/server.js
 RUN echo '  res.json({ status: "ok" });' >> /tmp/server.js
+RUN echo '});' >> /tmp/server.js
+RUN echo '' >> /tmp/server.js
+RUN echo '// Product routes' >> /tmp/server.js
+RUN echo 'app.get("/api/products", (req, res) => {' >> /tmp/server.js
+RUN echo '  console.log("Fetching all products");' >> /tmp/server.js
+RUN echo '  const processedProducts = mockProducts.map((product, index) => processProductImages(product, index));' >> /tmp/server.js
+RUN echo '  res.json(processedProducts);' >> /tmp/server.js
+RUN echo '});' >> /tmp/server.js
+RUN echo '' >> /tmp/server.js
+RUN echo 'app.get("/api/products/:id", (req, res) => {' >> /tmp/server.js
+RUN echo '  const productId = req.params.id;' >> /tmp/server.js
+RUN echo '  console.log("Fetching product with ID:", productId);' >> /tmp/server.js
+RUN echo '  const product = mockProducts.find(p => p._id === productId || p.id === productId);' >> /tmp/server.js
+RUN echo '  if (!product) {' >> /tmp/server.js
+RUN echo '    return res.status(404).json({ error: "Product not found" });' >> /tmp/server.js
+RUN echo '  }' >> /tmp/server.js
+RUN echo '  const processedProduct = processProductImages(product);' >> /tmp/server.js
+RUN echo '  res.json(processedProduct);' >> /tmp/server.js
+RUN echo '});' >> /tmp/server.js
+RUN echo '' >> /tmp/server.js
+RUN echo '// Cart routes' >> /tmp/server.js
+RUN echo 'app.get("/api/cart", (req, res) => {' >> /tmp/server.js
+RUN echo '  console.log("Cart requested, current items:", JSON.stringify(cartItems, null, 2));' >> /tmp/server.js
+RUN echo '  const cart = {' >> /tmp/server.js
+RUN echo '    items: cartItems.map(item => ({' >> /tmp/server.js
+RUN echo '      ...item,' >> /tmp/server.js
+RUN echo '      id: item.itemId' >> /tmp/server.js
+RUN echo '    })),' >> /tmp/server.js
+RUN echo '    subtotal: calculateSubtotal(cartItems),' >> /tmp/server.js
+RUN echo '    tax: calculateTax(cartItems),' >> /tmp/server.js
+RUN echo '    total: calculateTotal(cartItems)' >> /tmp/server.js
+RUN echo '  };' >> /tmp/server.js
+RUN echo '  res.json(cart);' >> /tmp/server.js
+RUN echo '});' >> /tmp/server.js
+RUN echo '' >> /tmp/server.js
+RUN echo 'app.post("/api/cart/items", (req, res) => {' >> /tmp/server.js
+RUN echo '  const { productId, name, price, quantity, image } = req.body;' >> /tmp/server.js
+RUN echo '  console.log("Received add to cart request:", JSON.stringify({ productId, name, price, quantity, image }, null, 2));' >> /tmp/server.js
+RUN echo '' >> /tmp/server.js
+RUN echo '  const normalizedProductId = normalizeId(productId);' >> /tmp/server.js
+RUN echo '  const itemId = `item-${Date.now()}`;' >> /tmp/server.js
+RUN echo '  console.log("Processed IDs:", { originalProductId: productId, normalizedProductId, generatedItemId: itemId });' >> /tmp/server.js
+RUN echo '' >> /tmp/server.js
+RUN echo '  if (!normalizedProductId || !name || !price || !quantity) {' >> /tmp/server.js
+RUN echo '    console.log("Missing required fields:", { productId, name, price, quantity });' >> /tmp/server.js
+RUN echo '    return res.status(400).json({ message: "Missing required fields" });' >> /tmp/server.js
+RUN echo '  }' >> /tmp/server.js
+RUN echo '' >> /tmp/server.js
+RUN echo '  try {' >> /tmp/server.js
+RUN echo '    const existingItemIndex = cartItems.findIndex(item => normalizeId(item.productId) === normalizedProductId);' >> /tmp/server.js
+RUN echo '    console.log("Existing item check:", { existingItemIndex, existingItem: existingItemIndex >= 0 ? cartItems[existingItemIndex] : null });' >> /tmp/server.js
+RUN echo '' >> /tmp/server.js
+RUN echo '    let updatedItem;' >> /tmp/server.js
+RUN echo '    if (existingItemIndex >= 0) {' >> /tmp/server.js
+RUN echo '      cartItems[existingItemIndex].quantity += quantity;' >> /tmp/server.js
+RUN echo '      updatedItem = cartItems[existingItemIndex];' >> /tmp/server.js
+RUN echo '      console.log("Updated existing item quantity:", updatedItem);' >> /tmp/server.js
+RUN echo '    } else {' >> /tmp/server.js
+RUN echo '      const newItem = {' >> /tmp/server.js
+RUN echo '        id: itemId,' >> /tmp/server.js
+RUN echo '        productId: normalizedProductId,' >> /tmp/server.js
+RUN echo '        itemId: itemId,' >> /tmp/server.js
+RUN echo '        name,' >> /tmp/server.js
+RUN echo '        price,' >> /tmp/server.js
+RUN echo '        quantity,' >> /tmp/server.js
+RUN echo '        image: image && image.startsWith("http") ? image : getPlaceholderImage(cartItems.length)' >> /tmp/server.js
+RUN echo '      };' >> /tmp/server.js
+RUN echo '      cartItems.push(newItem);' >> /tmp/server.js
+RUN echo '      updatedItem = newItem;' >> /tmp/server.js
+RUN echo '      console.log("Added new item to cart:", newItem);' >> /tmp/server.js
+RUN echo '    }' >> /tmp/server.js
+RUN echo '' >> /tmp/server.js
+RUN echo '    console.log("Current cart state:", JSON.stringify(cartItems, null, 2));' >> /tmp/server.js
+RUN echo '' >> /tmp/server.js
+RUN echo '    const updatedCart = {' >> /tmp/server.js
+RUN echo '      items: cartItems.map(item => ({' >> /tmp/server.js
+RUN echo '        ...item,' >> /tmp/server.js
+RUN echo '        id: item.itemId' >> /tmp/server.js
+RUN echo '      })),' >> /tmp/server.js
+RUN echo '      subtotal: calculateSubtotal(cartItems),' >> /tmp/server.js
+RUN echo '      tax: calculateTax(cartItems),' >> /tmp/server.js
+RUN echo '      total: calculateTotal(cartItems),' >> /tmp/server.js
+RUN echo '      updatedItem: { ...updatedItem, id: updatedItem.itemId }' >> /tmp/server.js
+RUN echo '    };' >> /tmp/server.js
+RUN echo '    console.log("Returning updated cart:", JSON.stringify(updatedCart, null, 2));' >> /tmp/server.js
+RUN echo '    res.status(201).json(updatedCart);' >> /tmp/server.js
+RUN echo '  } catch (error) {' >> /tmp/server.js
+RUN echo '    console.error("Error adding item to cart:", error);' >> /tmp/server.js
+RUN echo '    res.status(500).json({ error: "Failed to add item to cart" });' >> /tmp/server.js
+RUN echo '  }' >> /tmp/server.js
+RUN echo '});' >> /tmp/server.js
+RUN echo '' >> /tmp/server.js
+RUN echo 'app.put("/api/cart/items/:itemId", (req, res) => {' >> /tmp/server.js
+RUN echo '  const rawItemId = req.params.itemId;' >> /tmp/server.js
+RUN echo '  const { quantity } = req.body;' >> /tmp/server.js
+RUN echo '  console.log("Update cart request received:", { itemId: rawItemId, quantity, currentCartItems: cartItems.length, cartItemIds: cartItems.map(item => item.itemId) });' >> /tmp/server.js
+RUN echo '' >> /tmp/server.js
+RUN echo '  if (!rawItemId) {' >> /tmp/server.js
+RUN echo '    console.log("Missing item ID");' >> /tmp/server.js
+RUN echo '    return res.status(400).json({ error: "Item ID is required" });' >> /tmp/server.js
+RUN echo '  }' >> /tmp/server.js
+RUN echo '' >> /tmp/server.js
+RUN echo '  if (quantity === undefined || quantity === null) {' >> /tmp/server.js
+RUN echo '    console.log("Update rejected: Missing quantity");' >> /tmp/server.js
+RUN echo '    return res.status(400).json({ error: "Quantity is required" });' >> /tmp/server.js
+RUN echo '  }' >> /tmp/server.js
+RUN echo '' >> /tmp/server.js
+RUN echo '  try {' >> /tmp/server.js
+RUN echo '    const itemIndex = cartItems.findIndex(item => item.itemId === rawItemId);' >> /tmp/server.js
+RUN echo '    console.log("Item lookup result:", { requestedItemId: rawItemId, foundIndex: itemIndex, matchedItem: itemIndex >= 0 ? cartItems[itemIndex] : null, allItemIds: cartItems.map(item => item.itemId) });' >> /tmp/server.js
+RUN echo '' >> /tmp/server.js
+RUN echo '    if (itemIndex === -1) {' >> /tmp/server.js
+RUN echo '      console.log("Item not found in cart. Available items:", JSON.stringify(cartItems.map(item => ({ itemId: item.itemId, productId: item.productId, name: item.name })), null, 2));' >> /tmp/server.js
+RUN echo '      return res.status(404).json({ error: "Item not found in cart" });' >> /tmp/server.js
+RUN echo '    }' >> /tmp/server.js
+RUN echo '' >> /tmp/server.js
+RUN echo '    const oldQuantity = cartItems[itemIndex].quantity;' >> /tmp/server.js
+RUN echo '    cartItems[itemIndex].quantity = Number(quantity);' >> /tmp/server.js
+RUN echo '    console.log("Updated item quantity:", { itemId: rawItemId, oldQuantity, newQuantity: cartItems[itemIndex].quantity, updatedItem: cartItems[itemIndex] });' >> /tmp/server.js
+RUN echo '' >> /tmp/server.js
+RUN echo '    const updatedCart = {' >> /tmp/server.js
+RUN echo '      items: cartItems,' >> /tmp/server.js
+RUN echo '      subtotal: calculateSubtotal(cartItems),' >> /tmp/server.js
+RUN echo '      tax: calculateTax(cartItems),' >> /tmp/server.js
+RUN echo '      total: calculateTotal(cartItems),' >> /tmp/server.js
+RUN echo '      updatedItem: cartItems[itemIndex]' >> /tmp/server.js
+RUN echo '    };' >> /tmp/server.js
+RUN echo '    console.log("Returning updated cart:", JSON.stringify(updatedCart, null, 2));' >> /tmp/server.js
+RUN echo '    return res.json(updatedCart);' >> /tmp/server.js
+RUN echo '  } catch (error) {' >> /tmp/server.js
+RUN echo '    console.error("Error updating cart:", error);' >> /tmp/server.js
+RUN echo '    return res.status(500).json({ error: "Failed to update cart" });' >> /tmp/server.js
+RUN echo '  }' >> /tmp/server.js
+RUN echo '});' >> /tmp/server.js
+RUN echo '' >> /tmp/server.js
+RUN echo 'app.delete("/api/cart/items/:itemId", (req, res) => {' >> /tmp/server.js
+RUN echo '  const rawItemId = req.params.itemId;' >> /tmp/server.js
+RUN echo '  console.log("Removing item from cart:", { rawItemId });' >> /tmp/server.js
+RUN echo '  console.log("Current cart items:", cartItems.map(item => ({' >> /tmp/server.js
+RUN echo '    productId: item.productId,' >> /tmp/server.js
+RUN echo '    itemId: item.itemId' >> /tmp/server.js
+RUN echo '  })));' >> /tmp/server.js
+RUN echo '' >> /tmp/server.js
+RUN echo '  try {' >> /tmp/server.js
+RUN echo '    const countBefore = cartItems.length;' >> /tmp/server.js
+RUN echo '    cartItems = cartItems.filter(item => item.itemId !== rawItemId);' >> /tmp/server.js
+RUN echo '    const countAfter = cartItems.length;' >> /tmp/server.js
+RUN echo '    console.log(`Removed ${countBefore - countAfter} items from cart`);' >> /tmp/server.js
+RUN echo '' >> /tmp/server.js
+RUN echo '    return res.json({' >> /tmp/server.js
+RUN echo '      items: cartItems,' >> /tmp/server.js
+RUN echo '      subtotal: calculateSubtotal(cartItems),' >> /tmp/server.js
+RUN echo '      tax: calculateTax(cartItems),' >> /tmp/server.js
+RUN echo '      total: calculateTotal(cartItems)' >> /tmp/server.js
+RUN echo '    });' >> /tmp/server.js
+RUN echo '  } catch (error) {' >> /tmp/server.js
+RUN echo '    console.error("Error removing item from cart:", error);' >> /tmp/server.js
+RUN echo '    return res.status(500).json({ error: "Failed to remove item from cart" });' >> /tmp/server.js
+RUN echo '  }' >> /tmp/server.js
+RUN echo '});' >> /tmp/server.js
+RUN echo '' >> /tmp/server.js
+RUN echo 'app.delete("/api/cart", (req, res) => {' >> /tmp/server.js
+RUN echo '  console.log("Clearing cart");' >> /tmp/server.js
+RUN echo '  cartItems = [];' >> /tmp/server.js
+RUN echo '  res.json({' >> /tmp/server.js
+RUN echo '    items: [],' >> /tmp/server.js
+RUN echo '    subtotal: 0,' >> /tmp/server.js
+RUN echo '    tax: 0,' >> /tmp/server.js
+RUN echo '    total: 0' >> /tmp/server.js
+RUN echo '  });' >> /tmp/server.js
 RUN echo '});' >> /tmp/server.js
 RUN echo '' >> /tmp/server.js
 RUN echo '// Shipping routes' >> /tmp/server.js
@@ -67,7 +310,7 @@ fi
 
 # Verify server.js exists
 RUN ls -la src/
-RUN cat src/server.js
+RUN cat src/server.js | head -20
 
 # Expose port
 EXPOSE 8080
