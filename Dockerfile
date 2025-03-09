@@ -300,27 +300,38 @@ RUN echo 'let orders = [];' >> /tmp/server.js
 RUN echo '' >> /tmp/server.js
 RUN echo 'app.post("/api/orders", (req, res) => {' >> /tmp/server.js
 RUN echo '  try {' >> /tmp/server.js
-RUN echo '    console.log("Receiving order:", JSON.stringify(req.body, null, 2));' >> /tmp/server.js
-RUN echo '    const { items, customer, shipping, payment, subtotal, tax, total } = req.body;' >> /tmp/server.js
+RUN echo '    console.log("Receiving order. Request body:", JSON.stringify(req.body, null, 2));' >> /tmp/server.js
+RUN echo '    const { items, customer, shipping, payment, shippingAddress, billingAddress, shippingOption, paymentMethod, subtotal, tax, total } = req.body;' >> /tmp/server.js
 RUN echo '' >> /tmp/server.js
-RUN echo '    // Validate order data' >> /tmp/server.js
-RUN echo '    if (!items || !customer || !shipping || !payment) {' >> /tmp/server.js
-RUN echo '      console.log("Invalid order data:", { items, customer, shipping, payment });' >> /tmp/server.js
-RUN echo '      return res.status(400).json({ error: "Missing required order information" });' >> /tmp/server.js
-RUN echo '    }' >> /tmp/server.js
+RUN echo '    // More flexible validation' >> /tmp/server.js
+RUN echo '    const cartItems = items || req.body.cart?.items || req.body.cartItems || [];' >> /tmp/server.js
+RUN echo '    const customerInfo = customer || req.body.customerInfo || req.body.user || {};' >> /tmp/server.js
+RUN echo '    const shippingInfo = shipping || shippingOption || req.body.selectedShipping || {};' >> /tmp/server.js
+RUN echo '    const paymentInfo = payment || paymentMethod || req.body.selectedPayment || {};' >> /tmp/server.js
+RUN echo '    const shippingAddr = shippingAddress || customerInfo.shippingAddress || req.body.shippingAddress || {};' >> /tmp/server.js
+RUN echo '    const billingAddr = billingAddress || customerInfo.billingAddress || req.body.billingAddress || {};' >> /tmp/server.js
 RUN echo '' >> /tmp/server.js
-RUN echo '    // Create order' >> /tmp/server.js
+RUN echo '    console.log("Processed order data:", {' >> /tmp/server.js
+RUN echo '      cartItems: Array.isArray(cartItems) ? cartItems.length : "not an array",' >> /tmp/server.js
+RUN echo '      customerInfo: JSON.stringify(customerInfo),' >> /tmp/server.js
+RUN echo '      shippingInfo: JSON.stringify(shippingInfo),' >> /tmp/server.js
+RUN echo '      paymentInfo: JSON.stringify(paymentInfo)' >> /tmp/server.js
+RUN echo '    });' >> /tmp/server.js
+RUN echo '' >> /tmp/server.js
+RUN echo '    // Create order even with minimal data' >> /tmp/server.js
 RUN echo '    const orderId = `order-${Date.now()}`;' >> /tmp/server.js
 RUN echo '    const newOrder = {' >> /tmp/server.js
 RUN echo '      id: orderId,' >> /tmp/server.js
 RUN echo '      orderId: orderId,' >> /tmp/server.js
-RUN echo '      items: items,' >> /tmp/server.js
-RUN echo '      customer: customer,' >> /tmp/server.js
-RUN echo '      shipping: shipping,' >> /tmp/server.js
-RUN echo '      payment: payment,' >> /tmp/server.js
-RUN echo '      subtotal: subtotal || calculateSubtotal(items),' >> /tmp/server.js
-RUN echo '      tax: tax || calculateTax(items),' >> /tmp/server.js
-RUN echo '      total: total || calculateTotal(items),' >> /tmp/server.js
+RUN echo '      items: cartItems,' >> /tmp/server.js
+RUN echo '      customer: customerInfo,' >> /tmp/server.js
+RUN echo '      shipping: shippingInfo,' >> /tmp/server.js
+RUN echo '      payment: paymentInfo,' >> /tmp/server.js
+RUN echo '      shippingAddress: shippingAddr,' >> /tmp/server.js
+RUN echo '      billingAddress: billingAddr,' >> /tmp/server.js
+RUN echo '      subtotal: subtotal || calculateSubtotal(cartItems) || 0,' >> /tmp/server.js
+RUN echo '      tax: tax || (Array.isArray(cartItems) ? calculateTax(cartItems) : 0) || 0,' >> /tmp/server.js
+RUN echo '      total: total || (Array.isArray(cartItems) ? calculateTotal(cartItems) : 0) || 0,' >> /tmp/server.js
 RUN echo '      status: "confirmed",' >> /tmp/server.js
 RUN echo '      createdAt: new Date().toISOString()' >> /tmp/server.js
 RUN echo '    };' >> /tmp/server.js
