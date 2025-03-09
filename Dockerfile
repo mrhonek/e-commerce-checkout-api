@@ -16,6 +16,7 @@ RUN mkdir -p src
 RUN echo '// Server code' > /tmp/server.js
 RUN echo 'const express = require("express");' >> /tmp/server.js
 RUN echo 'const cors = require("cors");' >> /tmp/server.js
+RUN echo 'const nodemailer = require("nodemailer");' >> /tmp/server.js
 RUN echo '' >> /tmp/server.js
 RUN echo '// Initialize app' >> /tmp/server.js
 RUN echo 'const app = express();' >> /tmp/server.js
@@ -305,8 +306,8 @@ RUN echo '' >> /tmp/server.js
 RUN echo '    // Extract all possible order data fields with defensive coding' >> /tmp/server.js
 RUN echo '    let orderData = {};' >> /tmp/server.js
 RUN echo '    try {' >> /tmp/server.js
-RUN echo '      const { items, cart, cartItems, customer, customerInfo, shipping, payment, shippingAddress, billingAddress } = req.body || {};' >> /tmp/server.js
-RUN echo '      orderData = { items, cart, cartItems, customer, customerInfo, shipping, payment, shippingAddress, billingAddress };' >> /tmp/server.js
+RUN echo '      const { items, cart, cartItems, customer, customerInfo, shipping, payment, shippingAddress, billingAddress, email } = req.body || {};' >> /tmp/server.js
+RUN echo '      orderData = { items, cart, cartItems, customer, customerInfo, shipping, payment, shippingAddress, billingAddress, email };' >> /tmp/server.js
 RUN echo '      console.log("Extracted order data fields:", Object.keys(orderData).filter(k => orderData[k]));' >> /tmp/server.js
 RUN echo '    } catch (parseError) {' >> /tmp/server.js
 RUN echo '      console.error("Error parsing request body:", parseError);' >> /tmp/server.js
@@ -363,7 +364,12 @@ RUN echo '      console.error("Error calculating order totals:", calcError);' >>
 RUN echo '    }' >> /tmp/server.js
 RUN echo '' >> /tmp/server.js
 RUN echo '    // Address information with fallbacks' >> /tmp/server.js
+RUN echo '    const customerEmail = req.body.email || req.body.customer?.email || req.body.customerInfo?.email || "";' >> /tmp/server.js
 RUN echo '    const customerInfo = req.body.customer || req.body.customerInfo || req.body.user || {};' >> /tmp/server.js
+RUN echo '    // Ensure the customer object has an email property' >> /tmp/server.js
+RUN echo '    if (customerEmail && !customerInfo.email) {' >> /tmp/server.js
+RUN echo '      customerInfo.email = customerEmail;' >> /tmp/server.js
+RUN echo '    }' >> /tmp/server.js
 RUN echo '    const shippingInfo = req.body.shipping || req.body.shippingOption || req.body.selectedShipping || {};' >> /tmp/server.js
 RUN echo '    const paymentInfo = req.body.payment || req.body.paymentMethod || req.body.selectedPayment || {};' >> /tmp/server.js
 RUN echo '    const shippingAddr = req.body.shippingAddress || customerInfo.shippingAddress || {};' >> /tmp/server.js
@@ -398,6 +404,13 @@ RUN echo '      tax: orderTax,' >> /tmp/server.js
 RUN echo '      total: orderTotal' >> /tmp/server.js
 RUN echo '    }));' >> /tmp/server.js
 RUN echo '    orders.push(newOrder);' >> /tmp/server.js
+RUN echo '' >> /tmp/server.js
+RUN echo '    // Send confirmation email' >> /tmp/server.js
+RUN echo '    try {' >> /tmp/server.js
+RUN echo '      sendOrderConfirmationEmail(newOrder);' >> /tmp/server.js
+RUN echo '    } catch (emailError) {' >> /tmp/server.js
+RUN echo '      console.error("Failed to send confirmation email:", emailError);' >> /tmp/server.js
+RUN echo '    }' >> /tmp/server.js
 RUN echo '' >> /tmp/server.js
 RUN echo '    // Make a copy of the cart items before clearing' >> /tmp/server.js
 RUN echo '    const previousCartItems = [...cartItems];' >> /tmp/server.js
@@ -447,9 +460,224 @@ RUN echo '  }' >> /tmp/server.js
 RUN echo '  res.json(order);' >> /tmp/server.js
 RUN echo '});' >> /tmp/server.js
 RUN echo '' >> /tmp/server.js
+RUN echo '// Test email endpoint' >> /tmp/server.js
+RUN echo 'app.post("/api/test-email", async (req, res) => {' >> /tmp/server.js
+RUN echo '  try {' >> /tmp/server.js
+RUN echo '    const { email } = req.body;' >> /tmp/server.js
+RUN echo '    if (!email) {' >> /tmp/server.js
+RUN echo '      return res.status(400).json({ error: "Email address is required" });' >> /tmp/server.js
+RUN echo '    }' >> /tmp/server.js
+RUN echo '' >> /tmp/server.js
+RUN echo '    console.log("Sending test email to:", email);' >> /tmp/server.js
+RUN echo '' >> /tmp/server.js
+RUN echo '    // Create a simple test email' >> /tmp/server.js
+RUN echo '    const mailOptions = {' >> /tmp/server.js
+RUN echo '      from: process.env.EMAIL_FROM || "orders@your-store.com",' >> /tmp/server.js
+RUN echo '      to: email,' >> /tmp/server.js
+RUN echo '      subject: "Test Email from E-commerce Store",' >> /tmp/server.js
+RUN echo '      text: "This is a test email from your e-commerce store. If you received this, email functionality is working!",' >> /tmp/server.js
+RUN echo '      html: `' >> /tmp/server.js
+RUN echo '        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee;">' >> /tmp/server.js
+RUN echo '          <h1 style="color: #4a90e2;">Test Email</h1>' >> /tmp/server.js
+RUN echo '          <p>This is a test email from your e-commerce store.</p>' >> /tmp/server.js
+RUN echo '          <p>If you received this, email functionality is working correctly!</p>' >> /tmp/server.js
+RUN echo '          <p style="margin-top: 30px; color: #666; font-size: 12px;">This is an automated message, please do not reply.</p>' >> /tmp/server.js
+RUN echo '        </div>' >> /tmp/server.js
+RUN echo '      `' >> /tmp/server.js
+RUN echo '    };' >> /tmp/server.js
+RUN echo '' >> /tmp/server.js
+RUN echo '    const info = await emailTransporter.sendMail(mailOptions);' >> /tmp/server.js
+RUN echo '    console.log("Test email sent successfully:", info.messageId);' >> /tmp/server.js
+RUN echo '' >> /tmp/server.js
+RUN echo '    // If using Ethereal, include the preview URL' >> /tmp/server.js
+RUN echo '    let response = { success: true, message: "Test email sent successfully" };' >> /tmp/server.js
+RUN echo '    if (process.env.NODE_ENV !== "production") {' >> /tmp/server.js
+RUN echo '      const previewUrl = nodemailer.getTestMessageUrl(info);' >> /tmp/server.js
+RUN echo '      if (previewUrl) {' >> /tmp/server.js
+RUN echo '        console.log("Preview URL:", previewUrl);' >> /tmp/server.js
+RUN echo '        response.previewUrl = previewUrl;' >> /tmp/server.js
+RUN echo '      }' >> /tmp/server.js
+RUN echo '    }' >> /tmp/server.js
+RUN echo '' >> /tmp/server.js
+RUN echo '    res.json(response);' >> /tmp/server.js
+RUN echo '  } catch (error) {' >> /tmp/server.js
+RUN echo '    console.error("Error sending test email:", error);' >> /tmp/server.js
+RUN echo '    res.status(500).json({ error: "Failed to send test email", details: error.message });' >> /tmp/server.js
+RUN echo '  }' >> /tmp/server.js
+RUN echo '});' >> /tmp/server.js
+RUN echo '' >> /tmp/server.js
+RUN echo '// Email service' >> /tmp/server.js
+RUN echo 'const emailTransporter = nodemailer.createTransport({' >> /tmp/server.js
+RUN echo '  host: process.env.EMAIL_HOST || "smtp.ethereal.email",' >> /tmp/server.js
+RUN echo '  port: process.env.EMAIL_PORT || 587,' >> /tmp/server.js
+RUN echo '  secure: process.env.EMAIL_SECURE === "true",' >> /tmp/server.js
+RUN echo '  auth: {' >> /tmp/server.js
+RUN echo '    user: process.env.EMAIL_USER || "ethereal.user@ethereal.email",' >> /tmp/server.js
+RUN echo '    pass: process.env.EMAIL_PASSWORD || "ethereal_pass"' >> /tmp/server.js
+RUN echo '  },' >> /tmp/server.js
+RUN echo '  tls: {' >> /tmp/server.js
+RUN echo '    rejectUnauthorized: false' >> /tmp/server.js
+RUN echo '  }' >> /tmp/server.js
+RUN echo '});' >> /tmp/server.js
+RUN echo '' >> /tmp/server.js
+RUN echo 'async function sendOrderConfirmationEmail(order) {' >> /tmp/server.js
+RUN echo '  console.log("Preparing to send order confirmation email");' >> /tmp/server.js
+RUN echo '' >> /tmp/server.js
+RUN echo '  // Get customer email from order' >> /tmp/server.js
+RUN echo '  const email = order.customer.email || "customer@example.com";' >> /tmp/server.js
+RUN echo '  if (!email) {' >> /tmp/server.js
+RUN echo '    console.warn("No customer email found, skipping confirmation email");' >> /tmp/server.js
+RUN echo '    return;' >> /tmp/server.js
+RUN echo '  }' >> /tmp/server.js
+RUN echo '' >> /tmp/server.js
+RUN echo '  // Generate email content' >> /tmp/server.js
+RUN echo '  const subject = `Order Confirmation #${order.orderId}`;' >> /tmp/server.js
+RUN echo '  ' >> /tmp/server.js
+RUN echo '  // Generate item list' >> /tmp/server.js
+RUN echo '  let itemsHtml = "";' >> /tmp/server.js
+RUN echo '  if (order.items && order.items.length > 0) {' >> /tmp/server.js
+RUN echo '    itemsHtml = order.items.map(item => `' >> /tmp/server.js
+RUN echo '      <tr>' >> /tmp/server.js
+RUN echo '        <td>${item.name}</td>' >> /tmp/server.js
+RUN echo '        <td>${item.quantity}</td>' >> /tmp/server.js
+RUN echo '        <td>$${Number(item.price).toFixed(2)}</td>' >> /tmp/server.js
+RUN echo '        <td>$${(Number(item.price) * Number(item.quantity)).toFixed(2)}</td>' >> /tmp/server.js
+RUN echo '      </tr>' >> /tmp/server.js
+RUN echo '    `).join("");' >> /tmp/server.js
+RUN echo '  }' >> /tmp/server.js
+RUN echo '' >> /tmp/server.js
+RUN echo '  const htmlContent = `' >> /tmp/server.js
+RUN echo '    <!DOCTYPE html>' >> /tmp/server.js
+RUN echo '    <html>' >> /tmp/server.js
+RUN echo '    <head>' >> /tmp/server.js
+RUN echo '      <style>' >> /tmp/server.js
+RUN echo '        body { font-family: Arial, sans-serif; line-height: 1.6; }' >> /tmp/server.js
+RUN echo '        .container { width: 100%; max-width: 600px; margin: 0 auto; }' >> /tmp/server.js
+RUN echo '        .header { background-color: #4a90e2; color: white; padding: 1em; text-align: center; }' >> /tmp/server.js
+RUN echo '        .content { padding: 1em; }' >> /tmp/server.js
+RUN echo '        .footer { background-color: #f5f5f5; padding: 1em; text-align: center; font-size: 0.8em; }' >> /tmp/server.js
+RUN echo '        table { width: 100%; border-collapse: collapse; margin-bottom: 1em; }' >> /tmp/server.js
+RUN echo '        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }' >> /tmp/server.js
+RUN echo '        th { background-color: #f5f5f5; }' >> /tmp/server.js
+RUN echo '        .totals { text-align: right; margin-top: 1em; }' >> /tmp/server.js
+RUN echo '      </style>' >> /tmp/server.js
+RUN echo '    </head>' >> /tmp/server.js
+RUN echo '    <body>' >> /tmp/server.js
+RUN echo '      <div class="container">' >> /tmp/server.js
+RUN echo '        <div class="header">' >> /tmp/server.js
+RUN echo '          <h1>Order Confirmation</h1>' >> /tmp/server.js
+RUN echo '        </div>' >> /tmp/server.js
+RUN echo '        <div class="content">' >> /tmp/server.js
+RUN echo '          <p>Dear ${order.customer.firstName || "Customer"},</p>' >> /tmp/server.js
+RUN echo '          <p>Thank you for your order! We are pleased to confirm that your order has been received and is being processed.</p>' >> /tmp/server.js
+RUN echo '          <h2>Order Details</h2>' >> /tmp/server.js
+RUN echo '          <p><strong>Order Number:</strong> ${order.orderId}</p>' >> /tmp/server.js
+RUN echo '          <p><strong>Order Date:</strong> ${new Date(order.createdAt).toLocaleString()}</p>' >> /tmp/server.js
+RUN echo '          <h3>Items Ordered</h3>' >> /tmp/server.js
+RUN echo '          <table>' >> /tmp/server.js
+RUN echo '            <thead>' >> /tmp/server.js
+RUN echo '              <tr>' >> /tmp/server.js
+RUN echo '                <th>Product</th>' >> /tmp/server.js
+RUN echo '                <th>Quantity</th>' >> /tmp/server.js
+RUN echo '                <th>Price</th>' >> /tmp/server.js
+RUN echo '                <th>Total</th>' >> /tmp/server.js
+RUN echo '              </tr>' >> /tmp/server.js
+RUN echo '            </thead>' >> /tmp/server.js
+RUN echo '            <tbody>' >> /tmp/server.js
+RUN echo '              ${itemsHtml}' >> /tmp/server.js
+RUN echo '            </tbody>' >> /tmp/server.js
+RUN echo '          </table>' >> /tmp/server.js
+RUN echo '          <div class="totals">' >> /tmp/server.js
+RUN echo '            <p><strong>Subtotal:</strong> $${Number(order.subtotal).toFixed(2)}</p>' >> /tmp/server.js
+RUN echo '            <p><strong>Tax:</strong> $${Number(order.tax).toFixed(2)}</p>' >> /tmp/server.js
+RUN echo '            <p><strong>Total:</strong> $${Number(order.total).toFixed(2)}</p>' >> /tmp/server.js
+RUN echo '          </div>' >> /tmp/server.js
+RUN echo '          <h3>Shipping Information</h3>' >> /tmp/server.js
+RUN echo '          <p>' >> /tmp/server.js
+RUN echo '            ${order.customer.firstName || ""} ${order.customer.lastName || ""}<br>' >> /tmp/server.js
+RUN echo '            ${order.shippingAddress.street || ""}<br>' >> /tmp/server.js
+RUN echo '            ${order.shippingAddress.city || ""}, ${order.shippingAddress.state || ""} ${order.shippingAddress.zip || ""}<br>' >> /tmp/server.js
+RUN echo '            ${order.shippingAddress.country || ""}' >> /tmp/server.js
+RUN echo '          </p>' >> /tmp/server.js
+RUN echo '          <p>Shipping Method: ${order.shipping.name || "Standard Shipping"}</p>' >> /tmp/server.js
+RUN echo '          <p>If you have any questions or concerns regarding your order, please contact our customer service.</p>' >> /tmp/server.js
+RUN echo '          <p>Thank you for shopping with us!</p>' >> /tmp/server.js
+RUN echo '        </div>' >> /tmp/server.js
+RUN echo '        <div class="footer">' >> /tmp/server.js
+RUN echo '          <p>&copy; ${new Date().getFullYear()} Your E-commerce Store. All rights reserved.</p>' >> /tmp/server.js
+RUN echo '        </div>' >> /tmp/server.js
+RUN echo '      </div>' >> /tmp/server.js
+RUN echo '    </body>' >> /tmp/server.js
+RUN echo '    </html>' >> /tmp/server.js
+RUN echo '  `;' >> /tmp/server.js
+RUN echo '' >> /tmp/server.js
+RUN echo '  const textContent = `' >> /tmp/server.js
+RUN echo '    Order Confirmation #${order.orderId}' >> /tmp/server.js
+RUN echo '    ' >> /tmp/server.js
+RUN echo '    Dear ${order.customer.firstName || "Customer"},' >> /tmp/server.js
+RUN echo '    ' >> /tmp/server.js
+RUN echo '    Thank you for your order! We are pleased to confirm that your order has been received and is being processed.' >> /tmp/server.js
+RUN echo '    ' >> /tmp/server.js
+RUN echo '    Order Details:' >> /tmp/server.js
+RUN echo '    Order Number: ${order.orderId}' >> /tmp/server.js
+RUN echo '    Order Date: ${new Date(order.createdAt).toLocaleString()}' >> /tmp/server.js
+RUN echo '    ' >> /tmp/server.js
+RUN echo '    Total: $${Number(order.total).toFixed(2)}' >> /tmp/server.js
+RUN echo '    ' >> /tmp/server.js
+RUN echo '    Thank you for shopping with us!' >> /tmp/server.js
+RUN echo '  `;' >> /tmp/server.js
+RUN echo '' >> /tmp/server.js
+RUN echo '  try {' >> /tmp/server.js
+RUN echo '    // Send the email' >> /tmp/server.js
+RUN echo '    const mailOptions = {' >> /tmp/server.js
+RUN echo '      from: process.env.EMAIL_FROM || "orders@your-store.com",' >> /tmp/server.js
+RUN echo '      to: email,' >> /tmp/server.js
+RUN echo '      subject: subject,' >> /tmp/server.js
+RUN echo '      text: textContent,' >> /tmp/server.js
+RUN echo '      html: htmlContent' >> /tmp/server.js
+RUN echo '    };' >> /tmp/server.js
+RUN echo '' >> /tmp/server.js
+RUN echo '    console.log("Sending email to:", email);' >> /tmp/server.js
+RUN echo '    const info = await emailTransporter.sendMail(mailOptions);' >> /tmp/server.js
+RUN echo '    console.log("Email sent successfully:", info.messageId);' >> /tmp/server.js
+RUN echo '    ' >> /tmp/server.js
+RUN echo '    // If using Ethereal (testing), log the URL where the email can be viewed' >> /tmp/server.js
+RUN echo '    if (process.env.NODE_ENV !== "production") {' >> /tmp/server.js
+RUN echo '      console.log("Email preview URL:", nodemailer.getTestMessageUrl(info));' >> /tmp/server.js
+RUN echo '    }' >> /tmp/server.js
+RUN echo '  } catch (error) {' >> /tmp/server.js
+RUN echo '    console.error("Error sending confirmation email:", error);' >> /tmp/server.js
+RUN echo '  }' >> /tmp/server.js
+RUN echo '}' >> /tmp/server.js
+RUN echo '' >> /tmp/server.js
+RUN echo '// Setup test email account for development' >> /tmp/server.js
+RUN echo 'async function setupTestEmailAccount() {' >> /tmp/server.js
+RUN echo '  if (process.env.NODE_ENV !== "production" && !process.env.EMAIL_USER) {' >> /tmp/server.js
+RUN echo '    try {' >> /tmp/server.js
+RUN echo '      // Create a test account at Ethereal' >> /tmp/server.js
+RUN echo '      const testAccount = await nodemailer.createTestAccount();' >> /tmp/server.js
+RUN echo '      console.log("Created test email account:", testAccount.user);' >> /tmp/server.js
+RUN echo '      ' >> /tmp/server.js
+RUN echo '      // Update the transporter with test credentials' >> /tmp/server.js
+RUN echo '      emailTransporter = nodemailer.createTransport({' >> /tmp/server.js
+RUN echo '        host: "smtp.ethereal.email",' >> /tmp/server.js
+RUN echo '        port: 587,' >> /tmp/server.js
+RUN echo '        secure: false,' >> /tmp/server.js
+RUN echo '        auth: {' >> /tmp/server.js
+RUN echo '          user: testAccount.user,' >> /tmp/server.js
+RUN echo '          pass: testAccount.pass' >> /tmp/server.js
+RUN echo '        }' >> /tmp/server.js
+RUN echo '      });' >> /tmp/server.js
+RUN echo '    } catch (error) {' >> /tmp/server.js
+RUN echo '      console.error("Failed to create test email account:", error);' >> /tmp/server.js
+RUN echo '    }' >> /tmp/server.js
+RUN echo '  }' >> /tmp/server.js
+RUN echo '}' >> /tmp/server.js
+RUN echo '' >> /tmp/server.js
 RUN echo '// Start server' >> /tmp/server.js
 RUN echo 'app.listen(port, () => {' >> /tmp/server.js
 RUN echo '  console.log(`Server running on port ${port}`);' >> /tmp/server.js
+RUN echo '  setupTestEmailAccount().catch(err => console.error("Email setup error:", err));' >> /tmp/server.js
 RUN echo '});' >> /tmp/server.js
 RUN echo '' >> /tmp/server.js
 RUN echo 'module.exports = app;' >> /tmp/server.js

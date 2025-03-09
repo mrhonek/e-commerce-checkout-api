@@ -11,4 +11,13 @@ numReplicas = 1
 
 [phases.build]
 # Skip TypeScript build in Railway and let Dockerfile handle it
-commands = ["echo 'Using Dockerfile for build'"] 
+commands = ["echo 'Using Dockerfile for build'"]
+
+[envs]
+EMAIL_HOST = { sync = false }
+EMAIL_PORT = { sync = false }
+EMAIL_SECURE = { sync = false }
+EMAIL_USER = { sync = false }
+EMAIL_PASSWORD = { sync = false }
+EMAIL_FROM = { sync = false }
+NODE_ENV = { sync = false } 
