@@ -63,12 +63,12 @@ function calculateTotal(items) {
 
 // Mock products data
 const products = [
-  { _id: "prod1", name: "Ergonomic Office Chair", description: "Premium ergonomic office chair with lumbar support and adjustable height.", price: 249.99, stockQuantity: 15, imageUrl: "https://via.placeholder.com/400x300/3498db/ffffff?text=Office+Chair" },
-  { _id: "prod2", name: "Wireless Noise-Cancelling Headphones", description: "Premium wireless headphones with active noise cancellation and 30-hour battery life.", price: 199.99, stockQuantity: 25, imageUrl: "https://via.placeholder.com/400x300/e74c3c/ffffff?text=Headphones" },
-  { _id: "prod3", name: "Smart Watch Series 5", description: "Latest smart watch with health monitoring, GPS, and waterproof design.", price: 329.99, stockQuantity: 10, imageUrl: "https://via.placeholder.com/400x300/2ecc71/ffffff?text=Smart+Watch" },
-  { _id: "prod4", name: "4K Ultra HD TV - 55 inch", description: "Crystal clear 4K Ultra HD smart TV with HDR and voice control.", price: 599.99, stockQuantity: 8, imageUrl: "https://via.placeholder.com/400x300/f39c12/ffffff?text=4K+TV" },
-  { _id: "prod5", name: "Professional DSLR Camera", description: "High-resolution DSLR camera with 24.2MP sensor and 4K video recording.", price: 899.99, stockQuantity: 5, imageUrl: "https://via.placeholder.com/400x300/9b59b6/ffffff?text=DSLR+Camera" },
-  { _id: "prod6", name: "Bluetooth Portable Speaker", description: "Waterproof Bluetooth speaker with 24-hour battery life and rich bass.", price: 79.99, stockQuantity: 30, imageUrl: "https://via.placeholder.com/400x300/34495e/ffffff?text=Bluetooth+Speaker" }
+  { _id: "prod1", name: "Ergonomic Office Chair", description: "Premium ergonomic office chair with lumbar support and adjustable height.", price: 249.99, stockQuantity: 15, isFeatured: true, imageUrl: "https://via.placeholder.com/400x300/3498db/ffffff?text=Office+Chair" },
+  { _id: "prod2", name: "Wireless Noise-Cancelling Headphones", description: "Premium wireless headphones with active noise cancellation and 30-hour battery life.", price: 199.99, stockQuantity: 25, isFeatured: true, imageUrl: "https://via.placeholder.com/400x300/e74c3c/ffffff?text=Headphones" },
+  { _id: "prod3", name: "Smart Watch Series 5", description: "Latest smart watch with health monitoring, GPS, and waterproof design.", price: 329.99, stockQuantity: 10, isFeatured: false, imageUrl: "https://via.placeholder.com/400x300/2ecc71/ffffff?text=Smart+Watch" },
+  { _id: "prod4", name: "4K Ultra HD TV - 55 inch", description: "Crystal clear 4K Ultra HD smart TV with HDR and voice control.", price: 599.99, stockQuantity: 8, isFeatured: true, imageUrl: "https://via.placeholder.com/400x300/f39c12/ffffff?text=4K+TV" },
+  { _id: "prod5", name: "Professional DSLR Camera", description: "High-resolution DSLR camera with 24.2MP sensor and 4K video recording.", price: 899.99, stockQuantity: 5, isFeatured: false, imageUrl: "https://via.placeholder.com/400x300/9b59b6/ffffff?text=DSLR+Camera" },
+  { _id: "prod6", name: "Bluetooth Portable Speaker", description: "Waterproof Bluetooth speaker with 24-hour battery life and rich bass.", price: 79.99, stockQuantity: 30, isFeatured: false, imageUrl: "https://via.placeholder.com/400x300/34495e/ffffff?text=Bluetooth+Speaker" }
 ];
 
 // In-memory cart storage
@@ -91,6 +91,14 @@ app.get("/api", (req, res) => {
 app.get("/api/products", (req, res) => {
   console.log("GET /api/products");
   const processedProducts = products.map((product, index) => processProductImages(product, index));
+  res.json(processedProducts);
+});
+
+// Get featured products
+app.get("/api/products/featured", (req, res) => {
+  console.log("GET /api/products/featured");
+  const featuredProducts = products.filter(p => p.isFeatured);
+  const processedProducts = featuredProducts.map((product, index) => processProductImages(product, index));
   res.json(processedProducts);
 });
 
