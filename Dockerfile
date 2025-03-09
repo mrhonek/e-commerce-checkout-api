@@ -338,6 +338,30 @@ RUN echo "const express = require('express');" > src/server-ts.ts && \
     echo "  });" >> src/server-ts.ts && \
     echo "});" >> src/server-ts.ts && \
     echo "" >> src/server-ts.ts && \
+    echo "// Shipping routes" >> src/server-ts.ts && \
+    echo "app.get('/api/shipping/options', (req, res) => {" >> src/server-ts.ts && \
+    echo "  console.log('Fetching shipping options');" >> src/server-ts.ts && \
+    echo "  // Mock shipping options" >> src/server-ts.ts && \
+    echo "  const shippingOptions = [" >> src/server-ts.ts && \
+    echo "    { id: 'standard', name: 'Standard Shipping', description: '3-5 business days', price: 5.99, estimated_days: 5 }, >> src/server-ts.ts && \
+    echo "    { id: 'express', name: 'Express Shipping', description: '1-2 business days', price: 14.99, estimated_days: 2 }, >> src/server-ts.ts && \
+    echo "    { id: 'overnight', name: 'Overnight Shipping', description: 'Next business day', price: 29.99, estimated_days: 1 } >> src/server-ts.ts && \
+    echo "  ];" >> src/server-ts.ts && \
+    echo "  res.json(shippingOptions);" >> src/server-ts.ts && \
+    echo "});" >> src/server-ts.ts && \
+    echo "" >> src/server-ts.ts && \
+    echo "// Payment routes" >> src/server-ts.ts && \
+    echo "app.get('/api/payment/methods', (req, res) => {" >> src/server-ts.ts && \
+    echo "  console.log('Fetching payment methods');" >> src/server-ts.ts && \
+    echo "  // Mock payment methods" >> src/server-ts.ts && \
+    echo "  const paymentMethods = [" >> src/server-ts.ts && \
+    echo "    { id: 'card', name: 'Credit/Debit Card', description: 'Pay with Visa, Mastercard, or American Express', icon: 'credit-card' }, >> src/server-ts.ts && \
+    echo "    { id: 'paypal', name: 'PayPal', description: 'Pay with your PayPal account', icon: 'paypal' }, >> src/server-ts.ts && \
+    echo "    { id: 'apple-pay', name: 'Apple Pay', description: 'Quick and secure payment with Apple Pay', icon: 'apple' } >> src/server-ts.ts && \
+    echo "  ];" >> src/server-ts.ts && \
+    echo "  res.json(paymentMethods);" >> src/server-ts.ts && \
+    echo "});" >> src/server-ts.ts && \
+    echo "" >> src/server-ts.ts && \
     echo "// Helper functions" >> src/server-ts.ts && \
     echo "function calculateSubtotal(items) {" >> src/server-ts.ts && \
     echo "  return items.reduce((sum, item) => sum + (item.price * item.quantity), 0);" >> src/server-ts.ts && \
