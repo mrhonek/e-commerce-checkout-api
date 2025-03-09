@@ -22,19 +22,34 @@ RUN ls -la src || echo "src directory not found, creating it"
 # Create src directory if it doesn't exist
 RUN mkdir -p src
 
-# Create server-main.ts if it doesn't exist
+# Create server-main.ts if it doesn't exist - using CommonJS syntax
 RUN echo "Creating server-main.ts if it doesn't exist"
 RUN if [ ! -f src/server-main.ts ]; then \
     echo "// Main TypeScript server entry point" > src/server-main.ts; \
-    echo "import express from 'express';" >> src/server-main.ts; \
-    echo "import cors from 'cors';" >> src/server-main.ts; \
-    echo "import { MongoClient } from 'mongodb';" >> src/server-main.ts; \
+    echo "const express = require('express');" >> src/server-main.ts; \
+    echo "const cors = require('cors');" >> src/server-main.ts; \
+    echo "const { MongoClient, ObjectId } = require('mongodb');" >> src/server-main.ts; \
     echo "" >> src/server-main.ts; \
     echo "const app = express();" >> src/server-main.ts; \
     echo "const port = process.env.PORT || 8080;" >> src/server-main.ts; \
     echo "" >> src/server-main.ts; \
+    echo "console.log('=== Starting server with CommonJS syntax ===');" >> src/server-main.ts; \
+    echo "console.log('MONGODB_URI exists:', !!process.env.MONGODB_URI);" >> src/server-main.ts; \
+    echo "console.log('NODE_ENV:', process.env.NODE_ENV);" >> src/server-main.ts; \
+    echo "" >> src/server-main.ts; \
     echo "app.use(cors());" >> src/server-main.ts; \
     echo "app.use(express.json());" >> src/server-main.ts; \
+    echo "" >> src/server-main.ts; \
+    echo "// Additional CORS headers" >> src/server-main.ts; \
+    echo "app.use((req, res, next) => {" >> src/server-main.ts; \
+    echo "  res.header('Access-Control-Allow-Origin', '*');" >> src/server-main.ts; \
+    echo "  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');" >> src/server-main.ts; \
+    echo "  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');" >> src/server-main.ts; \
+    echo "  if (req.method === 'OPTIONS') {" >> src/server-main.ts; \
+    echo "    return res.status(200).end();" >> src/server-main.ts; \
+    echo "  }" >> src/server-main.ts; \
+    echo "  next();" >> src/server-main.ts; \
+    echo "});" >> src/server-main.ts; \
     echo "" >> src/server-main.ts; \
     echo "// Health check endpoint" >> src/server-main.ts; \
     echo "app.get('/api/health', (req, res) => {" >> src/server-main.ts; \
@@ -50,18 +65,102 @@ RUN if [ ! -f src/server-main.ts ]; then \
     echo "    }" >> src/server-main.ts; \
     echo "    const client = new MongoClient(process.env.MONGODB_URI);" >> src/server-main.ts; \
     echo "    await client.connect();" >> src/server-main.ts; \
+    echo "    console.log('Successfully connected to MongoDB');" >> src/server-main.ts; \
+    echo "" >> src/server-main.ts; \
     echo "    const db = client.db();" >> src/server-main.ts; \
     echo "    const products = await db.collection('products').find().toArray();" >> src/server-main.ts; \
+    echo "    console.log(`Found ${products.length} products in database`);" >> src/server-main.ts; \
+    echo "" >> src/server-main.ts; \
+    echo "    // Transform products for frontend compatibility" >> src/server-main.ts; \
     echo "    const transformedProducts = products.map(product => ({" >> src/server-main.ts; \
     echo "      ...product," >> src/server-main.ts; \
     echo "      _id: product._id.toString()," >> src/server-main.ts; \
     echo "      imageUrl: product.images && product.images.length > 0 ? product.images[0] : undefined" >> src/server-main.ts; \
     echo "    }));" >> src/server-main.ts; \
+    echo "" >> src/server-main.ts; \
+    echo "    if (transformedProducts.length > 0) {" >> src/server-main.ts; \
+    echo "      console.log('Sample product:', {" >> src/server-main.ts; \
+    echo "        _id: transformedProducts[0]._id," >> src/server-main.ts; \
+    echo "        name: transformedProducts[0].name," >> src/server-main.ts; \
+    echo "        imageUrl: transformedProducts[0].imageUrl" >> src/server-main.ts; \
+    echo "      });" >> src/server-main.ts; \
+    echo "    }" >> src/server-main.ts; \
+    echo "" >> src/server-main.ts; \
     echo "    await client.close();" >> src/server-main.ts; \
     echo "    res.json(transformedProducts);" >> src/server-main.ts; \
     echo "  } catch (error) {" >> src/server-main.ts; \
     echo "    console.error('Error fetching products:', error);" >> src/server-main.ts; \
     echo "    res.status(500).json({ error: 'Failed to fetch products' });" >> src/server-main.ts; \
+    echo "  }" >> src/server-main.ts; \
+    echo "});" >> src/server-main.ts; \
+    echo "" >> src/server-main.ts; \
+    echo "// Featured products endpoint" >> src/server-main.ts; \
+    echo "app.get('/api/products/featured', async (req, res) => {" >> src/server-main.ts; \
+    echo "  console.log('GET /api/products/featured');" >> src/server-main.ts; \
+    echo "  try {" >> src/server-main.ts; \
+    echo "    if (!process.env.MONGODB_URI) {" >> src/server-main.ts; \
+    echo "      throw new Error('MONGODB_URI not set');" >> src/server-main.ts; \
+    echo "    }" >> src/server-main.ts; \
+    echo "    const client = new MongoClient(process.env.MONGODB_URI);" >> src/server-main.ts; \
+    echo "    await client.connect();" >> src/server-main.ts; \
+    echo "" >> src/server-main.ts; \
+    echo "    const db = client.db();" >> src/server-main.ts; \
+    echo "    const products = await db.collection('products').find({ isFeatured: true }).toArray();" >> src/server-main.ts; \
+    echo "    console.log(`Found ${products.length} featured products in database`);" >> src/server-main.ts; \
+    echo "" >> src/server-main.ts; \
+    echo "    const transformedProducts = products.map(product => ({" >> src/server-main.ts; \
+    echo "      ...product," >> src/server-main.ts; \
+    echo "      _id: product._id.toString()," >> src/server-main.ts; \
+    echo "      imageUrl: product.images && product.images.length > 0 ? product.images[0] : undefined" >> src/server-main.ts; \
+    echo "    }));" >> src/server-main.ts; \
+    echo "" >> src/server-main.ts; \
+    echo "    await client.close();" >> src/server-main.ts; \
+    echo "    res.json(transformedProducts);" >> src/server-main.ts; \
+    echo "  } catch (error) {" >> src/server-main.ts; \
+    echo "    console.error('Error fetching featured products:', error);" >> src/server-main.ts; \
+    echo "    res.status(500).json({ error: 'Failed to fetch featured products' });" >> src/server-main.ts; \
+    echo "  }" >> src/server-main.ts; \
+    echo "});" >> src/server-main.ts; \
+    echo "" >> src/server-main.ts; \
+    echo "// Single product endpoint" >> src/server-main.ts; \
+    echo "app.get('/api/products/:id', async (req, res) => {" >> src/server-main.ts; \
+    echo "  const id = req.params.id;" >> src/server-main.ts; \
+    echo "  console.log(`GET /api/products/${id}`);" >> src/server-main.ts; \
+    echo "" >> src/server-main.ts; \
+    echo "  try {" >> src/server-main.ts; \
+    echo "    if (!process.env.MONGODB_URI) {" >> src/server-main.ts; \
+    echo "      throw new Error('MONGODB_URI not set');" >> src/server-main.ts; \
+    echo "    }" >> src/server-main.ts; \
+    echo "    const client = new MongoClient(process.env.MONGODB_URI);" >> src/server-main.ts; \
+    echo "    await client.connect();" >> src/server-main.ts; \
+    echo "" >> src/server-main.ts; \
+    echo "    const db = client.db();" >> src/server-main.ts; \
+    echo "    let product;" >> src/server-main.ts; \
+    echo "" >> src/server-main.ts; \
+    echo "    // Check if ID is a valid MongoDB ObjectId" >> src/server-main.ts; \
+    echo "    if (id.match(/^[0-9a-fA-F]{24}$/)) {" >> src/server-main.ts; \
+    echo "      product = await db.collection('products').findOne({ _id: new ObjectId(id) });" >> src/server-main.ts; \
+    echo "    } else {" >> src/server-main.ts; \
+    echo "      // Try by slug" >> src/server-main.ts; \
+    echo "      product = await db.collection('products').findOne({ slug: id });" >> src/server-main.ts; \
+    echo "    }" >> src/server-main.ts; \
+    echo "" >> src/server-main.ts; \
+    echo "    if (!product) {" >> src/server-main.ts; \
+    echo "      await client.close();" >> src/server-main.ts; \
+    echo "      return res.status(404).json({ error: 'Product not found' });" >> src/server-main.ts; \
+    echo "    }" >> src/server-main.ts; \
+    echo "" >> src/server-main.ts; \
+    echo "    const transformedProduct = {" >> src/server-main.ts; \
+    echo "      ...product," >> src/server-main.ts; \
+    echo "      _id: product._id.toString()," >> src/server-main.ts; \
+    echo "      imageUrl: product.images && product.images.length > 0 ? product.images[0] : undefined" >> src/server-main.ts; \
+    echo "    };" >> src/server-main.ts; \
+    echo "" >> src/server-main.ts; \
+    echo "    await client.close();" >> src/server-main.ts; \
+    echo "    res.json(transformedProduct);" >> src/server-main.ts; \
+    echo "  } catch (error) {" >> src/server-main.ts; \
+    echo "    console.error(`Error fetching product ${id}:`, error);" >> src/server-main.ts; \
+    echo "    res.status(500).json({ error: 'Failed to fetch product' });" >> src/server-main.ts; \
     echo "  }" >> src/server-main.ts; \
     echo "});" >> src/server-main.ts; \
     echo "" >> src/server-main.ts; \
