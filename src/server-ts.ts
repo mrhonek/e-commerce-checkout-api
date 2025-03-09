@@ -17,6 +17,8 @@ import { initializeRoutes } from './routes';
 import { loggerMiddleware } from './middleware';
 import db from './db/connection';
 import { corsHeadersMiddleware } from './middleware/cors.middleware';
+import Product from './models/product.model';
+import { IProductDocument } from './models/interfaces';
 
 // Load environment variables
 dotenv.config();
@@ -48,76 +50,127 @@ app.use((req, res, next) => {
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Sample product data (we'll replace this with MongoDB connection later)
-const products = [
+// Fallback product data (used if database is empty)
+const fallbackProducts = [
   { 
-    _id: "prod1", 
     name: "Ergonomic Office Chair", 
+    slug: "ergonomic-office-chair",
     description: "Premium ergonomic office chair with lumbar support and adjustable height.", 
     price: 249.99, 
     stockQuantity: 15, 
+    category: "Furniture",
+    sku: "OFC-001",
+    isInStock: true,
     isFeatured: true, 
-    imageUrl: "https://via.placeholder.com/400x300/3498db/ffffff?text=Office+Chair" 
+    images: ["https://via.placeholder.com/400x300/3498db/ffffff?text=Office+Chair"]
   },
   { 
-    _id: "prod2", 
     name: "Wireless Noise-Cancelling Headphones", 
+    slug: "wireless-noise-cancelling-headphones",
     description: "Premium wireless headphones with active noise cancellation and 30-hour battery life.", 
     price: 199.99, 
     stockQuantity: 25, 
+    category: "Electronics",
+    sku: "HDP-002",
+    isInStock: true,
     isFeatured: true, 
-    imageUrl: "https://via.placeholder.com/400x300/e74c3c/ffffff?text=Headphones" 
+    images: ["https://via.placeholder.com/400x300/e74c3c/ffffff?text=Headphones"]
   },
   { 
-    _id: "prod3", 
     name: "Smart Watch Series 5", 
+    slug: "smart-watch-series-5",
     description: "Latest smart watch with health monitoring, GPS, and waterproof design.", 
     price: 329.99, 
     stockQuantity: 10, 
+    category: "Electronics",
+    sku: "SWT-003",
+    isInStock: true,
     isFeatured: false, 
-    imageUrl: "https://via.placeholder.com/400x300/2ecc71/ffffff?text=Smart+Watch" 
+    images: ["https://via.placeholder.com/400x300/2ecc71/ffffff?text=Smart+Watch"]
   },
   { 
-    _id: "prod4", 
     name: "4K Ultra HD TV - 55 inch", 
+    slug: "4k-ultra-hd-tv-55-inch",
     description: "Crystal clear 4K Ultra HD smart TV with HDR and voice control.", 
     price: 599.99, 
     stockQuantity: 8, 
+    category: "Electronics",
+    sku: "TV4K-004",
+    isInStock: true,
     isFeatured: true, 
-    imageUrl: "https://via.placeholder.com/400x300/f39c12/ffffff?text=4K+TV" 
+    images: ["https://via.placeholder.com/400x300/f39c12/ffffff?text=4K+TV"]
   }
 ];
 
-// In-memory cart storage
+// In-memory cart storage (temporary until we implement MongoDB cart model)
 let cart = { items: [] };
 
 // API Routes
 // Health check endpoint
 app.get('/api/health', (req, res) => {
-  res.status(200).json({ status: 'ok' });
+  res.status(200).json({ 
+    status: 'ok', 
+    database: db.getConnectionStateMessage()
+  });
 });
 
 // Get all products
-app.get('/api/products', (req, res) => {
+app.get('/api/products', async (req, res) => {
   console.log('GET /api/products');
-  res.json(products);
+  try {
+    let products = await Product.find();
+    
+    // If no products in the database, seed the database with fallback products
+    if (products.length === 0) {
+      console.log('No products found in database. Seeding with fallback products...');
+      await Product.insertMany(fallbackProducts);
+      products = await Product.find();
+    }
+    
+    res.json(products);
+  } catch (error) {
+    console.error('Error fetching products:', error);
+    res.status(500).json({ error: 'Failed to fetch products' });
+  }
 });
 
 // Get featured products
-app.get('/api/products/featured', (req, res) => {
+app.get('/api/products/featured', async (req, res) => {
   console.log('GET /api/products/featured');
-  const featuredProducts = products.filter(p => p.isFeatured);
-  res.json(featuredProducts);
+  try {
+    const featuredProducts = await Product.find({ isFeatured: true });
+    
+    // If no featured products in the database, return featured products from fallback data
+    if (featuredProducts.length === 0) {
+      console.log('No featured products found in database. Using fallback featured products...');
+      const fallbackFeatured = await Product.find({ isFeatured: true });
+      if (fallbackFeatured.length > 0) {
+        return res.json(fallbackFeatured);
+      }
+      // If still no featured products, return empty array
+      return res.json([]);
+    }
+    
+    res.json(featuredProducts);
+  } catch (error) {
+    console.error('Error fetching featured products:', error);
+    res.status(500).json({ error: 'Failed to fetch featured products' });
+  }
 });
 
 // Get a product by ID
-app.get('/api/products/:id', (req, res) => {
+app.get('/api/products/:id', async (req, res) => {
   console.log(`GET /api/products/${req.params.id}`);
-  const product = products.find(p => p._id === req.params.id);
-  if (!product) {
-    return res.status(404).json({ error: 'Product not found' });
+  try {
+    const product = await Product.findById(req.params.id);
+    if (!product) {
+      return res.status(404).json({ error: 'Product not found' });
+    }
+    res.json(product);
+  } catch (error) {
+    console.error(`Error fetching product ${req.params.id}:`, error);
+    res.status(500).json({ error: 'Failed to fetch product' });
   }
-  res.json(product);
 });
 
 // Get cart
@@ -134,7 +187,7 @@ app.get('/api/cart', (req, res) => {
 });
 
 // Add item to cart
-app.post('/api/cart/items', (req, res) => {
+app.post('/api/cart/items', async (req, res) => {
   console.log('POST /api/cart/items - Request body:', JSON.stringify(req.body));
   
   const { productId, quantity } = req.body;
@@ -149,30 +202,35 @@ app.post('/api/cart/items', (req, res) => {
     return res.status(400).json({ error: 'quantity must be a positive number' });
   }
   
-  const product = products.find(p => p._id === productId);
-  if (!product) {
-    console.log(`Product with ID ${productId} not found`);
-    return res.status(404).json({ error: 'Product not found' });
+  try {
+    const product = await Product.findById(productId);
+    if (!product) {
+      console.log(`Product with ID ${productId} not found`);
+      return res.status(404).json({ error: 'Product not found' });
+    }
+    
+    // Generate a unique itemId for this cart item
+    const itemId = `item_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    
+    // Create new cart item with both productId and itemId
+    const newItem = {
+      itemId,
+      productId,
+      name: product.name,
+      price: product.price,
+      quantity: Number(quantity)
+    };
+    
+    cart.items.push(newItem);
+    
+    console.log(`Added item to cart. ItemId: ${itemId}, ProductId: ${productId}, Current cart size: ${cart.items.length}`);
+    
+    // Return the complete item including the generated itemId
+    res.status(201).json(newItem);
+  } catch (error) {
+    console.error('Error adding item to cart:', error);
+    res.status(500).json({ error: 'Failed to add item to cart' });
   }
-  
-  // Generate a unique itemId for this cart item
-  const itemId = `item_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-  
-  // Create new cart item with both productId and itemId
-  const newItem = {
-    itemId,
-    productId,
-    name: product.name,
-    price: product.price,
-    quantity: Number(quantity)
-  };
-  
-  cart.items.push(newItem);
-  
-  console.log(`Added item to cart. ItemId: ${itemId}, ProductId: ${productId}, Current cart size: ${cart.items.length}`);
-  
-  // Return the complete item including the generated itemId
-  res.status(201).json(newItem);
 });
 
 // Update cart item
@@ -204,6 +262,7 @@ app.put('/api/cart/items/:itemId', (req, res) => {
     console.log(`Updated quantity of item with ID ${itemId} to ${quantity}`);
   }
   
+  console.log("Updated cart:", JSON.stringify(cart));
   res.json(cart);
 });
 
