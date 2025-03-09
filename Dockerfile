@@ -6,11 +6,15 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install
 
-# Install express and related packages explicitly
-RUN npm install mongodb express cors
+# Install required packages directly
+RUN npm install express cors
 
-# Copy all source files 
-COPY . .
+# Copy only what we need
+COPY src/server.js /app/src/server.js
+
+# Debug the content
+RUN echo "Checking if server.js exists:"
+RUN ls -la /app/src/
 
 # Expose the port
 EXPOSE 8080
