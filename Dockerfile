@@ -6,57 +6,36 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install
 
-# Copy all project files
+# Explicitly install TypeScript and ts-node
+RUN npm install -g typescript ts-node
+
+# Copy all files
 COPY . .
 
-# Debug: List directory contents to see what we have
-RUN echo "Contents of the root directory:"
-RUN ls -la
+# In case the middleware file doesn't have CORS headers, create a temporary version
+# Force headers directly in the main entrypoint
+RUN echo 'import express from "express";\n\
+import { Request, Response, NextFunction } from "express";\n\
+\n\
+export function ensureCorsHeaders(req: Request, res: Response, next: NextFunction) {\n\
+  res.header("Access-Control-Allow-Origin", "https://e-commerce-checkout-redesign.vercel.app");\n\
+  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");\n\
+  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");\n\
+  res.header("Access-Control-Allow-Credentials", "true");\n\
+  \n\
+  if (req.method === "OPTIONS") {\n\
+    return res.status(200).end();\n\
+  }\n\
+  next();\n\
+}\n' > src/middleware/ensure-cors.ts
 
-# Check if src directory exists
-RUN echo "Looking for src directory:"
-RUN ls -la src || echo "src directory not found"
-
-# Build TypeScript files if possible
-RUN if [ -f tsconfig.json ] && [ -d src ]; then \
-    echo "Building TypeScript files..." && \
-    npx tsc || echo "TypeScript compilation failed"; \
-fi
-
-# Check what server files we have available
-RUN echo "Available server files:"
-RUN find . -name "server*.js" -o -name "server*.ts" || echo "No server files found"
-
-# Create a minimal fallback server if needed
-RUN if [ ! -f src/server.js ] && [ ! -f src/server-ts.ts ] && [ ! -f src/server.ts ]; then \
-    echo "Creating a minimal Express server..." && \
-    mkdir -p src && \
-    echo 'const express = require("express");' > src/server.js && \
-    echo 'const app = express();' >> src/server.js && \
-    echo 'const port = process.env.PORT || 8080;' >> src/server.js && \
-    echo 'app.get("/api/health", (req, res) => { res.status(200).json({ status: "ok" }); });' >> src/server.js && \
-    echo 'app.listen(port, () => { console.log(`Server running on port ${port}`); });' >> src/server.js; \
-fi
-
-# Make sure server files are executable
-RUN chmod -R +x src || echo "Could not set execute permissions"
+# Modify TypeScript server file to add permissive CORS
+RUN sed -i '1i // CORS Override - Added by Dockerfile' src/server-ts.ts
+RUN sed -i '/import cors from/a import { ensureCorsHeaders } from "./middleware/ensure-cors";' src/server-ts.ts
+RUN sed -i '/app.use(cors(/a app.use(ensureCorsHeaders);' src/server-ts.ts
 
 # Expose port
 EXPOSE 8080
 
-# Command to start the application with fallbacks
-CMD if [ -f src/server.js ]; then \
-      echo "Starting with Node.js (server.js)" && \
-      node src/server.js; \
-    elif [ -f src/server-ts.ts ]; then \
-      echo "Starting with ts-node (server-ts.ts)" && \
-      npm install -g ts-node typescript && \
-      npx ts-node src/server-ts.ts; \
-    elif [ -f src/server.ts ]; then \
-      echo "Starting with ts-node (server.ts)" && \
-      npm install -g ts-node typescript && \
-      npx ts-node src/server.ts; \
-    else \
-      echo "No server file found. Exiting." && \
-      exit 1; \
-    fi 
+# Start the TypeScript server directly with ts-node
+CMD ["ts-node", "src/server-ts.ts"] 
