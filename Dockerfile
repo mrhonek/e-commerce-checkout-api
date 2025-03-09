@@ -208,10 +208,16 @@ RUN echo "const express = require('express');" > src/server-ts.ts && \
     echo "" >> src/server-ts.ts && \
     echo "// Update cart item" >> src/server-ts.ts && \
     echo "app.put('/api/cart/items/:itemId', (req, res) => {" >> src/server-ts.ts && \
-    echo "  const itemId = normalizeId(req.params.itemId);" >> src/server-ts.ts && \
+    echo "  const rawItemId = req.params.itemId;" >> src/server-ts.ts && \
+    echo "  // Remove 'item-' prefix if it exists and normalize" >> src/server-ts.ts && \
+    echo "  const itemId = normalizeId(rawItemId.replace(/^item-/, ''));" >> src/server-ts.ts && \
     echo "  const { quantity } = req.body;" >> src/server-ts.ts && \
-    echo "  console.log('Updating cart item:', { itemId, quantity });" >> src/server-ts.ts && \
-    echo "  console.log('Current cart items:', cartItems.map(item => ({id: item.productId, normalizedId: normalizeId(item.productId)})));" >> src/server-ts.ts && \
+    echo "  console.log('Updating cart item:', { rawItemId, normalizedId: itemId, quantity });" >> src/server-ts.ts && \
+    echo "  console.log('Current cart items:', cartItems.map(item => ({" >> src/server-ts.ts && \
+    echo "    id: item.productId," >> src/server-ts.ts && \
+    echo "    normalizedId: normalizeId(item.productId)," >> src/server-ts.ts && \
+    echo "    itemId: \`item-\${item.productId}\`" >> src/server-ts.ts && \
+    echo "  })));" >> src/server-ts.ts && \
     echo "" >> src/server-ts.ts && \
     echo "  if (quantity === undefined || quantity === null) {" >> src/server-ts.ts && \
     echo "    return res.status(400).json({ error: 'Quantity is required' });" >> src/server-ts.ts && \
@@ -219,7 +225,10 @@ RUN echo "const express = require('express');" > src/server-ts.ts && \
     echo "" >> src/server-ts.ts && \
     echo "  try {" >> src/server-ts.ts && \
     echo "    // Find the item in the cart using normalized IDs" >> src/server-ts.ts && \
-    echo "    const itemIndex = cartItems.findIndex(item => normalizeId(item.productId) === itemId);" >> src/server-ts.ts && \
+    echo "    const itemIndex = cartItems.findIndex(item => {" >> src/server-ts.ts && \
+    echo "      const normalizedProductId = normalizeId(item.productId);" >> src/server-ts.ts && \
+    echo "      return normalizedProductId === itemId || \`item-\${normalizedProductId}\` === rawItemId;" >> src/server-ts.ts && \
+    echo "    });" >> src/server-ts.ts && \
     echo "    console.log('Item index found:', itemIndex);" >> src/server-ts.ts && \
     echo "" >> src/server-ts.ts && \
     echo "    if (itemIndex === -1) {" >> src/server-ts.ts && \
@@ -244,20 +253,29 @@ RUN echo "const express = require('express');" > src/server-ts.ts && \
     echo "" >> src/server-ts.ts && \
     echo "// Remove item from cart" >> src/server-ts.ts && \
     echo "app.delete('/api/cart/items/:itemId', (req, res) => {" >> src/server-ts.ts && \
-    echo "  const itemId = normalizeId(req.params.itemId);" >> src/server-ts.ts && \
-    echo "  console.log('Removing item from cart with ID:', itemId);" >> src/server-ts.ts && \
-    echo "  console.log('Current cart item IDs:', cartItems.map(item => normalizeId(item.productId)));" >> src/server-ts.ts && \
+    echo "  const rawItemId = req.params.itemId;" >> src/server-ts.ts && \
+    echo "  // Remove 'item-' prefix if it exists and normalize" >> src/server-ts.ts && \
+    echo "  const itemId = normalizeId(rawItemId.replace(/^item-/, ''));" >> src/server-ts.ts && \
+    echo "  console.log('Removing item from cart:', { rawItemId, normalizedId: itemId });" >> src/server-ts.ts && \
+    echo "  console.log('Current cart items:', cartItems.map(item => ({" >> src/server-ts.ts && \
+    echo "    id: item.productId," >> src/server-ts.ts && \
+    echo "    normalizedId: normalizeId(item.productId)," >> src/server-ts.ts && \
+    echo "    itemId: \`item-\${item.productId}\`" >> src/server-ts.ts && \
+    echo "  })));" >> src/server-ts.ts && \
     echo "" >> src/server-ts.ts && \
     echo "  try {" >> src/server-ts.ts && \
     echo "    // Count before removal" >> src/server-ts.ts && \
     echo "    const countBefore = cartItems.length;" >> src/server-ts.ts && \
     echo "" >> src/server-ts.ts && \
     echo "    // Remove the item from the cart using normalized IDs" >> src/server-ts.ts && \
-    echo "    cartItems = cartItems.filter(item => normalizeId(item.productId) !== itemId);" >> src/server-ts.ts && \
+    echo "    cartItems = cartItems.filter(item => {" >> src/server-ts.ts && \
+    echo "      const normalizedProductId = normalizeId(item.productId);" >> src/server-ts.ts && \
+    echo "      return !(normalizedProductId === itemId || \`item-\${normalizedProductId}\` === rawItemId);" >> src/server-ts.ts && \
+    echo "    });" >> src/server-ts.ts && \
     echo "" >> src/server-ts.ts && \
     echo "    // Count after removal" >> src/server-ts.ts && \
     echo "    const countAfter = cartItems.length;" >> src/server-ts.ts && \
-    echo "    console.log(`Removed ${countBefore - countAfter} items from cart`);" >> src/server-ts.ts && \
+    echo "    console.log(\`Removed \${countBefore - countAfter} items from cart\`);" >> src/server-ts.ts && \
     echo "" >> src/server-ts.ts && \
     echo "    // Return updated cart" >> src/server-ts.ts && \
     echo "    return res.json({" >> src/server-ts.ts && \
