@@ -71,6 +71,12 @@ RUN echo "const express = require('express');" > src/server-ts.ts && \
     echo "  return p;" >> src/server-ts.ts && \
     echo "}" >> src/server-ts.ts && \
     echo "" >> src/server-ts.ts && \
+    echo "// Normalize ID for comparison (handles ObjectId, strings, etc.)" >> src/server-ts.ts && \
+    echo "function normalizeId(id) {" >> src/server-ts.ts && \
+    echo "  if (!id) return '';" >> src/server-ts.ts && \
+    echo "  return String(id).trim();" >> src/server-ts.ts && \
+    echo "}" >> src/server-ts.ts && \
+    echo "" >> src/server-ts.ts && \
     echo "// Middleware" >> src/server-ts.ts && \
     echo "app.use(cors());" >> src/server-ts.ts && \
     echo "app.use(express.json());" >> src/server-ts.ts && \
@@ -151,7 +157,7 @@ RUN echo "const express = require('express');" > src/server-ts.ts && \
     echo "" >> src/server-ts.ts && \
     echo "// Get cart items" >> src/server-ts.ts && \
     echo "app.get('/api/cart', (req, res) => {" >> src/server-ts.ts && \
-    echo "  console.log('Cart requested');" >> src/server-ts.ts && \
+    echo "  console.log('Cart requested, current items:', cartItems.length);" >> src/server-ts.ts && \
     echo "  const cart = {" >> src/server-ts.ts && \
     echo "    items: cartItems," >> src/server-ts.ts && \
     echo "    subtotal: calculateSubtotal(cartItems)," >> src/server-ts.ts && \
@@ -164,14 +170,15 @@ RUN echo "const express = require('express');" > src/server-ts.ts && \
     echo "// Add item to cart" >> src/server-ts.ts && \
     echo "app.post('/api/cart/items', (req, res) => {" >> src/server-ts.ts && \
     echo "  const { productId, name, price, quantity, image } = req.body;" >> src/server-ts.ts && \
-    echo "  console.log('Adding to cart:', { productId, name, quantity, price });" >> src/server-ts.ts && \
+    echo "  const normalizedProductId = normalizeId(productId);" >> src/server-ts.ts && \
+    echo "  console.log('Adding to cart:', { productId: normalizedProductId, name, quantity, price });" >> src/server-ts.ts && \
     echo "  " >> src/server-ts.ts && \
-    echo "  if (!productId || !name || !price || !quantity) {" >> src/server-ts.ts && \
+    echo "  if (!normalizedProductId || !name || !price || !quantity) {" >> src/server-ts.ts && \
     echo "    return res.status(400).json({ message: 'Missing required fields' });" >> src/server-ts.ts && \
     echo "  }" >> src/server-ts.ts && \
     echo "" >> src/server-ts.ts && \
     echo "  // Check if item already exists in cart" >> src/server-ts.ts && \
-    echo "  const existingItemIndex = cartItems.findIndex(item => item.productId === productId);" >> src/server-ts.ts && \
+    echo "  const existingItemIndex = cartItems.findIndex(item => normalizeId(item.productId) === normalizedProductId);" >> src/server-ts.ts && \
     echo "" >> src/server-ts.ts && \
     echo "  if (existingItemIndex >= 0) {" >> src/server-ts.ts && \
     echo "    // Update quantity if item exists" >> src/server-ts.ts && \
@@ -179,7 +186,7 @@ RUN echo "const express = require('express');" > src/server-ts.ts && \
     echo "  } else {" >> src/server-ts.ts && \
     echo "    // Add new item if it doesn't exist" >> src/server-ts.ts && \
     echo "    cartItems.push({" >> src/server-ts.ts && \
-    echo "      productId," >> src/server-ts.ts && \
+    echo "      productId: normalizedProductId," >> src/server-ts.ts && \
     echo "      name," >> src/server-ts.ts && \
     echo "      price," >> src/server-ts.ts && \
     echo "      quantity," >> src/server-ts.ts && \
@@ -187,6 +194,8 @@ RUN echo "const express = require('express');" > src/server-ts.ts && \
     echo "      image: image && image.startsWith('http') ? image : getPlaceholderImage(cartItems.length)" >> src/server-ts.ts && \
     echo "    });" >> src/server-ts.ts && \
     echo "  }" >> src/server-ts.ts && \
+    echo "" >> src/server-ts.ts && \
+    echo "  console.log('Cart updated, now contains:', cartItems.length, 'items');" >> src/server-ts.ts && \
     echo "" >> src/server-ts.ts && \
     echo "  // Return updated cart" >> src/server-ts.ts && \
     echo "  res.status(201).json({" >> src/server-ts.ts && \
@@ -199,48 +208,68 @@ RUN echo "const express = require('express');" > src/server-ts.ts && \
     echo "" >> src/server-ts.ts && \
     echo "// Update cart item" >> src/server-ts.ts && \
     echo "app.put('/api/cart/items/:itemId', (req, res) => {" >> src/server-ts.ts && \
-    echo "  const { itemId } = req.params;" >> src/server-ts.ts && \
+    echo "  const itemId = normalizeId(req.params.itemId);" >> src/server-ts.ts && \
     echo "  const { quantity } = req.body;" >> src/server-ts.ts && \
     echo "  console.log('Updating cart item:', { itemId, quantity });" >> src/server-ts.ts && \
+    echo "  console.log('Current cart items:', cartItems.map(item => ({id: item.productId, normalizedId: normalizeId(item.productId)})));" >> src/server-ts.ts && \
     echo "" >> src/server-ts.ts && \
-    echo "  if (!quantity) {" >> src/server-ts.ts && \
-    echo "    return res.status(400).json({ message: 'Quantity is required' });" >> src/server-ts.ts && \
+    echo "  if (quantity === undefined || quantity === null) {" >> src/server-ts.ts && \
+    echo "    return res.status(400).json({ error: 'Quantity is required' });" >> src/server-ts.ts && \
     echo "  }" >> src/server-ts.ts && \
     echo "" >> src/server-ts.ts && \
-    echo "  // Find the item in the cart" >> src/server-ts.ts && \
-    echo "  const itemIndex = cartItems.findIndex(item => item.productId === itemId);" >> src/server-ts.ts && \
+    echo "  try {" >> src/server-ts.ts && \
+    echo "    // Find the item in the cart using normalized IDs" >> src/server-ts.ts && \
+    echo "    const itemIndex = cartItems.findIndex(item => normalizeId(item.productId) === itemId);" >> src/server-ts.ts && \
+    echo "    console.log('Item index found:', itemIndex);" >> src/server-ts.ts && \
     echo "" >> src/server-ts.ts && \
-    echo "  if (itemIndex === -1) {" >> src/server-ts.ts && \
-    echo "    return res.status(404).json({ message: 'Item not found in cart' });" >> src/server-ts.ts && \
+    echo "    if (itemIndex === -1) {" >> src/server-ts.ts && \
+    echo "      return res.status(404).json({ error: 'Item not found in cart' });" >> src/server-ts.ts && \
+    echo "    }" >> src/server-ts.ts && \
+    echo "" >> src/server-ts.ts && \
+    echo "    // Update the quantity" >> src/server-ts.ts && \
+    echo "    cartItems[itemIndex].quantity = Number(quantity);" >> src/server-ts.ts && \
+    echo "" >> src/server-ts.ts && \
+    echo "    // Return updated cart" >> src/server-ts.ts && \
+    echo "    return res.json({" >> src/server-ts.ts && \
+    echo "      items: cartItems," >> src/server-ts.ts && \
+    echo "      subtotal: calculateSubtotal(cartItems)," >> src/server-ts.ts && \
+    echo "      tax: calculateTax(cartItems)," >> src/server-ts.ts && \
+    echo "      total: calculateTotal(cartItems)" >> src/server-ts.ts && \
+    echo "    });" >> src/server-ts.ts && \
+    echo "  } catch (error) {" >> src/server-ts.ts && \
+    echo "    console.error('Error updating cart:', error);" >> src/server-ts.ts && \
+    echo "    return res.status(500).json({ error: 'Failed to update cart' });" >> src/server-ts.ts && \
     echo "  }" >> src/server-ts.ts && \
-    echo "" >> src/server-ts.ts && \
-    echo "  // Update the quantity" >> src/server-ts.ts && \
-    echo "  cartItems[itemIndex].quantity = quantity;" >> src/server-ts.ts && \
-    echo "" >> src/server-ts.ts && \
-    echo "  // Return updated cart" >> src/server-ts.ts && \
-    echo "  res.json({" >> src/server-ts.ts && \
-    echo "    items: cartItems," >> src/server-ts.ts && \
-    echo "    subtotal: calculateSubtotal(cartItems)," >> src/server-ts.ts && \
-    echo "    tax: calculateTax(cartItems)," >> src/server-ts.ts && \
-    echo "    total: calculateTotal(cartItems)" >> src/server-ts.ts && \
-    echo "  });" >> src/server-ts.ts && \
     echo "});" >> src/server-ts.ts && \
     echo "" >> src/server-ts.ts && \
     echo "// Remove item from cart" >> src/server-ts.ts && \
     echo "app.delete('/api/cart/items/:itemId', (req, res) => {" >> src/server-ts.ts && \
-    echo "  const { itemId } = req.params;" >> src/server-ts.ts && \
-    echo "  console.log('Removing item from cart:', itemId);" >> src/server-ts.ts && \
+    echo "  const itemId = normalizeId(req.params.itemId);" >> src/server-ts.ts && \
+    echo "  console.log('Removing item from cart with ID:', itemId);" >> src/server-ts.ts && \
+    echo "  console.log('Current cart item IDs:', cartItems.map(item => normalizeId(item.productId)));" >> src/server-ts.ts && \
     echo "" >> src/server-ts.ts && \
-    echo "  // Remove the item from the cart" >> src/server-ts.ts && \
-    echo "  cartItems = cartItems.filter(item => item.productId !== itemId);" >> src/server-ts.ts && \
+    echo "  try {" >> src/server-ts.ts && \
+    echo "    // Count before removal" >> src/server-ts.ts && \
+    echo "    const countBefore = cartItems.length;" >> src/server-ts.ts && \
     echo "" >> src/server-ts.ts && \
-    echo "  // Return updated cart" >> src/server-ts.ts && \
-    echo "  res.json({" >> src/server-ts.ts && \
-    echo "    items: cartItems," >> src/server-ts.ts && \
-    echo "    subtotal: calculateSubtotal(cartItems)," >> src/server-ts.ts && \
-    echo "    tax: calculateTax(cartItems)," >> src/server-ts.ts && \
-    echo "    total: calculateTotal(cartItems)" >> src/server-ts.ts && \
-    echo "  });" >> src/server-ts.ts && \
+    echo "    // Remove the item from the cart using normalized IDs" >> src/server-ts.ts && \
+    echo "    cartItems = cartItems.filter(item => normalizeId(item.productId) !== itemId);" >> src/server-ts.ts && \
+    echo "" >> src/server-ts.ts && \
+    echo "    // Count after removal" >> src/server-ts.ts && \
+    echo "    const countAfter = cartItems.length;" >> src/server-ts.ts && \
+    echo "    console.log(`Removed ${countBefore - countAfter} items from cart`);" >> src/server-ts.ts && \
+    echo "" >> src/server-ts.ts && \
+    echo "    // Return updated cart" >> src/server-ts.ts && \
+    echo "    return res.json({" >> src/server-ts.ts && \
+    echo "      items: cartItems," >> src/server-ts.ts && \
+    echo "      subtotal: calculateSubtotal(cartItems)," >> src/server-ts.ts && \
+    echo "      tax: calculateTax(cartItems)," >> src/server-ts.ts && \
+    echo "      total: calculateTotal(cartItems)" >> src/server-ts.ts && \
+    echo "    });" >> src/server-ts.ts && \
+    echo "  } catch (error) {" >> src/server-ts.ts && \
+    echo "    console.error('Error removing item from cart:', error);" >> src/server-ts.ts && \
+    echo "    return res.status(500).json({ error: 'Failed to remove item from cart' });" >> src/server-ts.ts && \
+    echo "  }" >> src/server-ts.ts && \
     echo "});" >> src/server-ts.ts && \
     echo "" >> src/server-ts.ts && \
     echo "// Clear cart" >> src/server-ts.ts && \
