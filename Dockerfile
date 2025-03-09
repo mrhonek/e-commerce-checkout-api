@@ -295,6 +295,72 @@ RUN echo '  ];' >> /tmp/server.js
 RUN echo '  res.json(paymentMethods);' >> /tmp/server.js
 RUN echo '});' >> /tmp/server.js
 RUN echo '' >> /tmp/server.js
+RUN echo '// Order placement' >> /tmp/server.js
+RUN echo 'let orders = [];' >> /tmp/server.js
+RUN echo '' >> /tmp/server.js
+RUN echo 'app.post("/api/orders", (req, res) => {' >> /tmp/server.js
+RUN echo '  try {' >> /tmp/server.js
+RUN echo '    console.log("Receiving order:", JSON.stringify(req.body, null, 2));' >> /tmp/server.js
+RUN echo '    const { items, customer, shipping, payment, subtotal, tax, total } = req.body;' >> /tmp/server.js
+RUN echo '' >> /tmp/server.js
+RUN echo '    // Validate order data' >> /tmp/server.js
+RUN echo '    if (!items || !customer || !shipping || !payment) {' >> /tmp/server.js
+RUN echo '      console.log("Invalid order data:", { items, customer, shipping, payment });' >> /tmp/server.js
+RUN echo '      return res.status(400).json({ error: "Missing required order information" });' >> /tmp/server.js
+RUN echo '    }' >> /tmp/server.js
+RUN echo '' >> /tmp/server.js
+RUN echo '    // Create order' >> /tmp/server.js
+RUN echo '    const orderId = `order-${Date.now()}`;' >> /tmp/server.js
+RUN echo '    const newOrder = {' >> /tmp/server.js
+RUN echo '      id: orderId,' >> /tmp/server.js
+RUN echo '      orderId: orderId,' >> /tmp/server.js
+RUN echo '      items: items,' >> /tmp/server.js
+RUN echo '      customer: customer,' >> /tmp/server.js
+RUN echo '      shipping: shipping,' >> /tmp/server.js
+RUN echo '      payment: payment,' >> /tmp/server.js
+RUN echo '      subtotal: subtotal || calculateSubtotal(items),' >> /tmp/server.js
+RUN echo '      tax: tax || calculateTax(items),' >> /tmp/server.js
+RUN echo '      total: total || calculateTotal(items),' >> /tmp/server.js
+RUN echo '      status: "confirmed",' >> /tmp/server.js
+RUN echo '      createdAt: new Date().toISOString()' >> /tmp/server.js
+RUN echo '    };' >> /tmp/server.js
+RUN echo '' >> /tmp/server.js
+RUN echo '    // Save order' >> /tmp/server.js
+RUN echo '    orders.push(newOrder);' >> /tmp/server.js
+RUN echo '    console.log(`Order ${orderId} created successfully`);' >> /tmp/server.js
+RUN echo '' >> /tmp/server.js
+RUN echo '    // Clear cart after successful order' >> /tmp/server.js
+RUN echo '    cartItems = [];' >> /tmp/server.js
+RUN echo '' >> /tmp/server.js
+RUN echo '    // Return order confirmation' >> /tmp/server.js
+RUN echo '    res.status(201).json({' >> /tmp/server.js
+RUN echo '      success: true,' >> /tmp/server.js
+RUN echo '      message: "Order placed successfully",' >> /tmp/server.js
+RUN echo '      order: newOrder' >> /tmp/server.js
+RUN echo '    });' >> /tmp/server.js
+RUN echo '  } catch (error) {' >> /tmp/server.js
+RUN echo '    console.error("Error creating order:", error);' >> /tmp/server.js
+RUN echo '    res.status(500).json({ error: "Failed to place order" });' >> /tmp/server.js
+RUN echo '  }' >> /tmp/server.js
+RUN echo '});' >> /tmp/server.js
+RUN echo '' >> /tmp/server.js
+RUN echo '// Get orders history' >> /tmp/server.js
+RUN echo 'app.get("/api/orders", (req, res) => {' >> /tmp/server.js
+RUN echo '  console.log("Fetching orders history");' >> /tmp/server.js
+RUN echo '  res.json(orders);' >> /tmp/server.js
+RUN echo '});' >> /tmp/server.js
+RUN echo '' >> /tmp/server.js
+RUN echo '// Get specific order' >> /tmp/server.js
+RUN echo 'app.get("/api/orders/:orderId", (req, res) => {' >> /tmp/server.js
+RUN echo '  const orderId = req.params.orderId;' >> /tmp/server.js
+RUN echo '  console.log(`Fetching order: ${orderId}`);' >> /tmp/server.js
+RUN echo '  const order = orders.find(o => o.orderId === orderId || o.id === orderId);' >> /tmp/server.js
+RUN echo '  if (!order) {' >> /tmp/server.js
+RUN echo '    return res.status(404).json({ error: "Order not found" });' >> /tmp/server.js
+RUN echo '  }' >> /tmp/server.js
+RUN echo '  res.json(order);' >> /tmp/server.js
+RUN echo '});' >> /tmp/server.js
+RUN echo '' >> /tmp/server.js
 RUN echo '// Start server' >> /tmp/server.js
 RUN echo 'app.listen(port, () => {' >> /tmp/server.js
 RUN echo '  console.log(`Server running on port ${port}`);' >> /tmp/server.js
