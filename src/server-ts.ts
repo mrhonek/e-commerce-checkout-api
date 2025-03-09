@@ -23,19 +23,36 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 5000;
 
-// ** TEMPORARY ** Permissive CORS configuration to unblock development
+// CORS configuration with specific allowed origins
 app.use(cors({
-  origin: '*', // Allow all origins
+  origin: [
+    'https://e-commerce-checkout-redesign.vercel.app',
+    'http://e-commerce-checkout-redesign.vercel.app',
+    'http://localhost:3000',
+    'http://localhost:5173'
+  ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
 }));
 
 // Apply our custom CORS middleware as an additional layer
 app.use(corsHeadersMiddleware);
 
 // Handle preflight requests globally
-app.options('*', cors({ origin: '*' }));
+app.options('*', cors({ 
+  origin: 'https://e-commerce-checkout-redesign.vercel.app',
+  credentials: true 
+}));
+
+// Additional direct CORS headers for certain requests
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', 'https://e-commerce-checkout-redesign.vercel.app');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  next();
+});
 
 app.use(express.json()); // Parse JSON requests
 app.use(express.urlencoded({ extended: true })); // Parse URL-encoded requests
@@ -90,7 +107,8 @@ db.connectDB()
     // Start server
     if (process.env.NODE_ENV !== 'test') {
       app.listen(port, () => {
-        console.log(`TypeScript server running on port ${port}`);
+        console.log(`Server running on port ${port}`);
+        console.log(`CORS configured to allow requests from: https://e-commerce-checkout-redesign.vercel.app`);
       });
     }
   })
