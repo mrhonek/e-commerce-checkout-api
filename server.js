@@ -315,7 +315,7 @@ async function sendOrderConfirmationEmail(order, customerEmail) {
     const formattedOrderId = orderId.startsWith('ORD-') ? orderId : `ORD-${orderId}`;
     
     // Use configured from email if available
-    const fromEmail = process.env.EMAIL_FROM || process.env.SMTP_FROM || '"E-Commerce Shop" <shop@example.com>';
+    const fromEmail = process.env.EMAIL_FROM || process.env.SMTP_FROM || '"RhnkShop" <shop@example.com>';
     
     // Create email content
     const mailOptions = {
@@ -372,7 +372,7 @@ async function sendOrderConfirmationEmail(order, customerEmail) {
           </div>
           
           <div style="background-color: #333; color: white; padding: 15px; text-align: center; margin-top: 20px;">
-            <p style="margin: 0;">&copy; ${new Date().getFullYear()} E-Commerce Shop. All rights reserved.</p>
+            <p style="margin: 0;">&copy; ${new Date().getFullYear()} RhnkShop. All rights reserved.</p>
           </div>
         </div>
       `
