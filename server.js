@@ -787,9 +787,48 @@ async function seedProductsToMongoDB() {
       await client.close();
       return true;
     } else {
-      console.log('Database already has products, skipping seeding');
+      console.log('Database already has products, updating with sale and deal tags...');
+      
+      // Get all products
+      const products = await collection.find().toArray();
+      
+      // Update products with sale and deal tags
+      const bulkUpdateOps = [];
+      
+      products.forEach((product, index) => {
+        const updateDoc = { $set: {} };
+        
+        // Mark every third product as on sale
+        if (index % 3 === 0) {
+          updateDoc.$set.onSale = true;
+          updateDoc.$set.originalPrice = (product.price * 1.25).toFixed(2);
+          updateDoc.$set.tags = [...(product.tags || []), 'sale'];
+        }
+        
+        // Mark every fourth product as a deal
+        if (index % 4 === 0) {
+          updateDoc.$set.isDeal = true;
+          updateDoc.$set.tags = [...(product.tags || []), 'deal'];
+        }
+        
+        // Only add to bulk ops if we have fields to update
+        if (Object.keys(updateDoc.$set).length > 0) {
+          bulkUpdateOps.push({
+            updateOne: {
+              filter: { _id: product._id },
+              update: updateDoc
+            }
+          });
+        }
+      });
+      
+      if (bulkUpdateOps.length > 0) {
+        const updateResult = await collection.bulkWrite(bulkUpdateOps);
+        console.log(`Updated ${updateResult.modifiedCount} products with sale and deal tags`);
+      }
+      
       await client.close();
-      return false;
+      return true;
     }
   } catch (error) {
     console.error('Error seeding products:', error);
@@ -849,87 +888,36 @@ app.get('/api/products', async (req, res) => {
         
         // Ensure the price is a valid number
         const price = typeof product.price === 'number' ? product.price : 
-                     typeof product.price === 'string' ? parseFloat(product.price) : 
-                     99.99; // Default price if undefined or invalid
+                      typeof product.price === 'string' ? parseFloat(product.price) : 
+                      99.99; // Default price if undefined or invalid
         
         return {
           ...product,
           _id: product._id.toString(),
-          // Use the same image for both properties for compatibility
           image: mainImage,
           imageUrl: mainImage,
           thumbnailUrl: mainImage,
-          // Ensure price is a valid number
           price: price,
-          // Ensure stock status is set
           inStock: product.inStock === undefined ? true : !!product.inStock,
-          // Ensure featured flag is set
           featured: product.featured === undefined ? false : !!product.featured,
-          // Add a formatted slug for nicer URLs (if not already present)
           slug: product.slug || product.name.toLowerCase().replace(/\s+/g, '-')
         };
       });
-      
-      // Log the first product for debugging
-      if (transformedProducts.length > 0) {
-        console.log('Sample product after transformation:', {
-          _id: transformedProducts[0]._id,
-          name: transformedProducts[0].name,
-          imageUrl: transformedProducts[0].imageUrl,
-          thumbnailUrl: transformedProducts[0].thumbnailUrl,
-          price: transformedProducts[0].price,
-          inStock: transformedProducts[0].inStock
-        });
-      }
       
       await client.close();
       
       if (transformedProducts.length > 0) {
         return res.json(transformedProducts);
       }
-      // If no products found, fall through to mock data
-      console.log('No products found in database, using fallback data');
-    } else {
-      console.log('No MongoDB connection, using fallback data');
     }
+    
+    console.log('No products found in database or no MongoDB connection');
+    res.json(enhancedMockProducts);
   } catch (error) {
     console.error('Error fetching products:', error);
     // Return an empty array instead of an error object
     res.json([]);
   }
-  
-  // Fallback mock products (with price explicitly as number)
-  const mockProducts = [
-    { 
-      _id: "prod1", 
-      name: "Office Chair", 
-      price: 249.99, 
-      isFeatured: true, 
-      imageUrl: "https://via.placeholder.com/400x300/3498db/ffffff?text=Office+Chair",
-      thumbnailUrl: "https://via.placeholder.com/400x300/3498db/ffffff?text=Office+Chair",
-      inStock: true 
-    },
-    { 
-      _id: "prod2", 
-      name: "Headphones", 
-      price: 199.99, 
-      isFeatured: true, 
-      imageUrl: "https://via.placeholder.com/400x300/e74c3c/ffffff?text=Headphones",
-      thumbnailUrl: "https://via.placeholder.com/400x300/e74c3c/ffffff?text=Headphones",
-      inStock: true
-    },
-    { 
-      _id: "prod3", 
-      name: "Laptop Stand", 
-      price: 79.99, 
-      isFeatured: false, 
-      imageUrl: "https://via.placeholder.com/400x300/2ecc71/ffffff?text=Laptop+Stand",
-      thumbnailUrl: "https://via.placeholder.com/400x300/2ecc71/ffffff?text=Laptop+Stand",
-      inStock: true
-    }
-  ];
-  console.log('Returning mock products as fallback');
-  res.json(mockProducts);
 });
 
 // Get featured products
@@ -1019,7 +1007,271 @@ app.get('/api/products/featured', async (req, res) => {
   res.json(mockFeatured);
 });
 
-// Get product by ID
+// Get products on sale
+app.get('/api/products/sale', async (req, res) => {
+  console.log('GET /api/products/sale');
+  
+  try {
+    const client = await connectToMongo();
+    
+    if (client) {
+      const db = client.db();
+      const products = await db.collection('products').find({ onSale: true }).toArray();
+      console.log(`Found ${products.length} products on sale in database`);
+      
+      // Use the same transformation logic for consistency
+      const transformedProducts = products.map(product => {
+        // Determine the proper image URL or provide a fallback
+        let mainImage = null;
+        
+        if (product.images && product.images.length > 0) {
+          mainImage = getImageUrl(product.images[0]);
+        } else if (product.image) {
+          mainImage = getImageUrl(product.image);
+        } else if (product.imageUrl) {
+          mainImage = getImageUrl(product.imageUrl);
+        } else {
+          // Use a nicer looking placeholder from Unsplash instead of placeholder.com
+          mainImage = getPlaceholderImage(product.name);
+        }
+        
+        // Ensure the price is a valid number
+        const price = typeof product.price === 'number' ? product.price : 
+                     typeof product.price === 'string' ? parseFloat(product.price) : 
+                     99.99; // Default price if undefined or invalid
+        
+        return {
+          ...product,
+          _id: product._id.toString(),
+          // Use the same image for both properties for compatibility
+          image: mainImage,
+          imageUrl: mainImage,
+          thumbnailUrl: mainImage,
+          // Ensure price is a valid number
+          price: price,
+          // Ensure stock status is set
+          inStock: product.inStock === undefined ? true : !!product.inStock,
+          // Ensure featured flag is set
+          featured: product.featured === undefined ? false : !!product.featured,
+          // Add a formatted slug for nicer URLs (if not already present)
+          slug: product.slug || product.name.toLowerCase().replace(/\s+/g, '-')
+        };
+      });
+      
+      await client.close();
+      
+      if (transformedProducts.length > 0) {
+        return res.json(transformedProducts);
+      }
+      // If no products on sale found, fall through to mock data
+    }
+  } catch (error) {
+    console.error('Error fetching products on sale:', error.message);
+  }
+  
+  // Fallback products on sale (with price explicitly as number and thumbnails)
+  const mockSale = [
+    { 
+      _id: "sale1", 
+      name: "Wireless Earbuds", 
+      price: 49.99, 
+      isFeatured: false, 
+      imageUrl: "https://via.placeholder.com/400x300/3498db/ffffff?text=Wireless+Earbuds",
+      thumbnailUrl: "https://via.placeholder.com/400x300/3498db/ffffff?text=Wireless+Earbuds",
+      inStock: true
+    },
+    { 
+      _id: "sale2", 
+      name: "Winter Jacket", 
+      price: 79.99, 
+      isFeatured: false, 
+      imageUrl: "https://via.placeholder.com/400x300/e74c3c/ffffff?text=Winter+Jacket",
+      thumbnailUrl: "https://via.placeholder.com/400x300/e74c3c/ffffff?text=Winter+Jacket",
+      inStock: true
+    }
+  ];
+  console.log('Returning mock products on sale as fallback');
+  res.json(mockSale);
+});
+
+// Get deal products
+app.get('/api/products/deals', async (req, res) => {
+  console.log('GET /api/products/deals');
+  
+  try {
+    const client = await connectToMongo();
+    
+    if (client) {
+      const db = client.db();
+      const products = await db.collection('products').find({ isDeal: true }).toArray();
+      console.log(`Found ${products.length} deal products in database`);
+      
+      // Use the same transformation logic for consistency
+      const transformedProducts = products.map(product => {
+        // Determine the proper image URL or provide a fallback
+        let mainImage = null;
+        
+        if (product.images && product.images.length > 0) {
+          mainImage = getImageUrl(product.images[0]);
+        } else if (product.image) {
+          mainImage = getImageUrl(product.image);
+        } else if (product.imageUrl) {
+          mainImage = getImageUrl(product.imageUrl);
+        } else {
+          // Use a nicer looking placeholder from Unsplash instead of placeholder.com
+          mainImage = getPlaceholderImage(product.name);
+        }
+        
+        // Ensure the price is a valid number
+        const price = typeof product.price === 'number' ? product.price : 
+                     typeof product.price === 'string' ? parseFloat(product.price) : 
+                     99.99; // Default price if undefined or invalid
+        
+        return {
+          ...product,
+          _id: product._id.toString(),
+          // Use the same image for both properties for compatibility
+          image: mainImage,
+          imageUrl: mainImage,
+          thumbnailUrl: mainImage,
+          // Ensure price is a valid number
+          price: price,
+          // Ensure stock status is set
+          inStock: product.inStock === undefined ? true : !!product.inStock,
+          // Ensure featured flag is set
+          featured: product.featured === undefined ? false : !!product.featured,
+          // Add a formatted slug for nicer URLs (if not already present)
+          slug: product.slug || product.name.toLowerCase().replace(/\s+/g, '-')
+        };
+      });
+      
+      await client.close();
+      
+      if (transformedProducts.length > 0) {
+        return res.json(transformedProducts);
+      }
+      // If no deal products found, fall through to mock data
+    }
+  } catch (error) {
+    console.error('Error fetching deal products:', error.message);
+  }
+  
+  // Fallback deal products (with price explicitly as number and thumbnails)
+  const mockDeals = [
+    { 
+      _id: "deal1", 
+      name: "Smart Speaker", 
+      price: 39.99, 
+      isFeatured: false, 
+      imageUrl: "https://via.placeholder.com/400x300/3498db/ffffff?text=Smart+Speaker",
+      thumbnailUrl: "https://via.placeholder.com/400x300/3498db/ffffff?text=Smart+Speaker",
+      inStock: true
+    },
+    { 
+      _id: "deal2", 
+      name: "Kitchen Knife Set", 
+      price: 69.99, 
+      isFeatured: false, 
+      imageUrl: "https://via.placeholder.com/400x300/e74c3c/ffffff?text=Kitchen+Knife+Set",
+      thumbnailUrl: "https://via.placeholder.com/400x300/e74c3c/ffffff?text=Kitchen+Knife+Set",
+      inStock: true
+    }
+  ];
+  console.log('Returning mock deal products as fallback');
+  res.json(mockDeals);
+});
+
+// Get products by category - this must come after other more specific routes
+app.get('/api/products/category/:category', async (req, res) => {
+  console.log('GET /api/products/category/:category');
+  
+  try {
+    const client = await connectToMongo();
+    
+    if (client) {
+      const db = client.db();
+      const category = req.params.category;
+      const products = await db.collection('products').find({ category }).toArray();
+      console.log(`Found ${products.length} products in category ${category} in database`);
+      
+      // Use the same transformation logic for consistency
+      const transformedProducts = products.map(product => {
+        // Determine the proper image URL or provide a fallback
+        let mainImage = null;
+        
+        if (product.images && product.images.length > 0) {
+          mainImage = getImageUrl(product.images[0]);
+        } else if (product.image) {
+          mainImage = getImageUrl(product.image);
+        } else if (product.imageUrl) {
+          mainImage = getImageUrl(product.imageUrl);
+        } else {
+          // Use a nicer looking placeholder from Unsplash instead of placeholder.com
+          mainImage = getPlaceholderImage(product.name);
+        }
+        
+        // Ensure the price is a valid number
+        const price = typeof product.price === 'number' ? product.price : 
+                     typeof product.price === 'string' ? parseFloat(product.price) : 
+                     99.99; // Default price if undefined or invalid
+        
+        return {
+          ...product,
+          _id: product._id.toString(),
+          // Use the same image for both properties for compatibility
+          image: mainImage,
+          imageUrl: mainImage,
+          thumbnailUrl: mainImage,
+          // Ensure price is a valid number
+          price: price,
+          // Ensure stock status is set
+          inStock: product.inStock === undefined ? true : !!product.inStock,
+          // Ensure featured flag is set
+          featured: product.featured === undefined ? false : !!product.featured,
+          // Add a formatted slug for nicer URLs (if not already present)
+          slug: product.slug || product.name.toLowerCase().replace(/\s+/g, '-')
+        };
+      });
+      
+      await client.close();
+      
+      if (transformedProducts.length > 0) {
+        return res.json(transformedProducts);
+      }
+      // If no products found in the category, fall through to mock data
+    }
+  } catch (error) {
+    console.error('Error fetching products by category:', error.message);
+  }
+  
+  // Fallback products by category (with price explicitly as number and thumbnails)
+  const mockCategory = [
+    { 
+      _id: "homekit1", 
+      name: "Coffee Maker", 
+      price: 79.99, 
+      category: "Home & Kitchen",
+      isFeatured: false, 
+      imageUrl: "https://via.placeholder.com/400x300/3498db/ffffff?text=Coffee+Maker",
+      thumbnailUrl: "https://via.placeholder.com/400x300/3498db/ffffff?text=Coffee+Maker",
+      inStock: true
+    },
+    { 
+      _id: "beauty1", 
+      name: "Face Serum", 
+      price: 24.99, 
+      category: "Beauty",
+      isFeatured: false, 
+      imageUrl: "https://via.placeholder.com/400x300/e74c3c/ffffff?text=Face+Serum",
+      thumbnailUrl: "https://via.placeholder.com/400x300/e74c3c/ffffff?text=Face+Serum",
+      inStock: true
+    }
+  ];
+  console.log('Returning mock products by category as fallback');
+  res.json(mockCategory);
+});
+
+// Get product by ID - this must come after other routes with specific paths
 app.get('/api/products/:id', async (req, res) => {
   const id = req.params.id;
   console.log(`GET /api/products/${id}`);
@@ -2088,274 +2340,6 @@ app.get('/api/sample-images', (req, res) => {
   } catch (error) {
     console.error('Error listing sample images:', error);
     res.status(500).json({ error: 'Failed to list sample images' });
-  }
-});
-
-// Get products by category
-app.get('/api/products/category/:category', async (req, res) => {
-  const { category } = req.params;
-  console.log(`GET /api/products/category/${category}`);
-  
-  // Format category from URL params (e.g., "home-kitchen" -> "home & kitchen")
-  let formattedCategory = category.toLowerCase();
-  if (formattedCategory === 'home-kitchen') {
-    formattedCategory = 'home & kitchen';
-  }
-  
-  console.log(`Looking for products in category: ${formattedCategory}`);
-  
-  try {
-    const client = await connectToMongo();
-    
-    if (client) {
-      const db = client.db();
-      
-      // Create a case-insensitive search for the category
-      const products = await db.collection('products')
-        .find({ 
-          $or: [
-            { category: { $regex: new RegExp('^' + formattedCategory + '$', 'i') } },
-            { categories: { $regex: new RegExp(formattedCategory, 'i') } }
-          ]
-        })
-        .toArray();
-      
-      console.log(`Found ${products.length} products in category ${formattedCategory}`);
-      
-      // Use the same transformation logic for consistency
-      const transformedProducts = products.map(product => {
-        // Determine the proper image URL or provide a fallback
-        let mainImage = null;
-        
-        if (product.images && product.images.length > 0) {
-          mainImage = getImageUrl(product.images[0]);
-        } else if (product.image) {
-          mainImage = getImageUrl(product.image);
-        } else if (product.imageUrl) {
-          mainImage = getImageUrl(product.imageUrl);
-        } else {
-          mainImage = getPlaceholderImage(product.name);
-        }
-        
-        // Ensure the price is a valid number
-        const price = typeof product.price === 'number' ? product.price : 
-                     typeof product.price === 'string' ? parseFloat(product.price) : 
-                     99.99; // Default price if undefined or invalid
-        
-        return {
-          ...product,
-          _id: product._id.toString(),
-          image: mainImage,
-          imageUrl: mainImage,
-          thumbnailUrl: mainImage,
-          price: price,
-          inStock: product.inStock === undefined ? true : !!product.inStock,
-          featured: product.featured === undefined ? false : !!product.featured,
-          slug: product.slug || product.name.toLowerCase().replace(/\s+/g, '-')
-        };
-      });
-      
-      await client.close();
-      
-      if (transformedProducts.length > 0) {
-        return res.json(transformedProducts);
-      }
-    }
-    
-    // If we get here, either no MongoDB connection or no products found
-    console.log(`No products found in category ${formattedCategory}, checking enhanced mock products`);
-    
-    // Filter enhanced mock products by category
-    const filteredProducts = enhancedMockProducts.filter(product => {
-      const productCategory = product.category?.toLowerCase() || '';
-      return productCategory === formattedCategory;
-    });
-    
-    if (filteredProducts.length > 0) {
-      console.log(`Returning ${filteredProducts.length} filtered mock products`);
-      return res.json(filteredProducts);
-    }
-    
-    // Last resort - return all products if none in category
-    console.log('No products in this category, returning all mock products');
-    res.json(enhancedMockProducts);
-  } catch (error) {
-    console.error(`Error fetching products for category ${formattedCategory}:`, error);
-    // Even on error, return an empty array instead of an error object
-    res.json([]);
-  }
-});
-
-// Get products on sale
-app.get('/api/products/sale', async (req, res) => {
-  console.log('GET /api/products/sale');
-  
-  try {
-    const client = await connectToMongo();
-    
-    if (client) {
-      const db = client.db();
-      // Find products that are marked as on sale or have sale-related flags
-      const products = await db.collection('products')
-        .find({ 
-          $or: [
-            { onSale: true },
-            { tags: 'sale' },
-            { tags: { $in: ['sale'] } },
-            { originalPrice: { $exists: true } }
-          ]
-        })
-        .toArray();
-      
-      console.log(`Found ${products.length} sale products in database`);
-      
-      // Transform as usual
-      const transformedProducts = products.map(product => {
-        let mainImage = null;
-        if (product.images && product.images.length > 0) {
-          mainImage = getImageUrl(product.images[0]);
-        } else if (product.image) {
-          mainImage = getImageUrl(product.image);
-        } else if (product.imageUrl) {
-          mainImage = getImageUrl(product.imageUrl);
-        } else {
-          mainImage = getPlaceholderImage(product.name);
-        }
-        
-        return {
-          ...product,
-          _id: product._id.toString(),
-          image: mainImage,
-          imageUrl: mainImage,
-          thumbnailUrl: mainImage,
-          price: typeof product.price === 'number' ? product.price : 
-                 typeof product.price === 'string' ? parseFloat(product.price) : 99.99,
-          inStock: product.inStock === undefined ? true : !!product.inStock,
-          featured: product.featured === undefined ? false : !!product.featured,
-          onSale: true, // Force this flag for consistency
-          slug: product.slug || product.name.toLowerCase().replace(/\s+/g, '-')
-        };
-      });
-      
-      await client.close();
-      
-      if (transformedProducts.length > 0) {
-        return res.json(transformedProducts);
-      }
-    }
-    
-    // Filter enhanced mock products for sale items
-    const saleProducts = enhancedMockProducts.filter(product => 
-      product.onSale || 
-      (product.tags && (product.tags.includes('sale'))) ||
-      product.originalPrice
-    );
-    
-    if (saleProducts.length > 0) {
-      console.log(`Returning ${saleProducts.length} mock sale products`);
-      return res.json(saleProducts);
-    }
-    
-    // If no sale products, return a subset of mock products "on sale"
-    const fakeSaleProducts = enhancedMockProducts.slice(0, 3).map(product => ({
-      ...product,
-      onSale: true,
-      originalPrice: (product.price * 1.5).toFixed(2),
-      tags: [...(product.tags || []), 'sale']
-    }));
-    
-    console.log('Returning fake sale products');
-    res.json(fakeSaleProducts);
-  } catch (error) {
-    console.error('Error fetching sale products:', error);
-    // Even on error, return an empty array instead of an error object
-    res.json([]);
-  }
-});
-
-// Get deal products
-app.get('/api/products/deals', async (req, res) => {
-  console.log('GET /api/products/deals');
-  
-  try {
-    const client = await connectToMongo();
-    
-    if (client) {
-      const db = client.db();
-      // Find products that are marked as deals
-      const products = await db.collection('products')
-        .find({ 
-          $or: [
-            { isDeal: true },
-            { tags: 'deal' },
-            { tags: { $in: ['deal'] } }
-          ]
-        })
-        .toArray();
-      
-      console.log(`Found ${products.length} deal products in database`);
-      
-      // Transform as usual
-      const transformedProducts = products.map(product => {
-        let mainImage = null;
-        if (product.images && product.images.length > 0) {
-          mainImage = getImageUrl(product.images[0]);
-        } else if (product.image) {
-          mainImage = getImageUrl(product.image);
-        } else if (product.imageUrl) {
-          mainImage = getImageUrl(product.imageUrl);
-        } else {
-          mainImage = getPlaceholderImage(product.name);
-        }
-        
-        return {
-          ...product,
-          _id: product._id.toString(),
-          image: mainImage,
-          imageUrl: mainImage,
-          thumbnailUrl: mainImage,
-          price: typeof product.price === 'number' ? product.price : 
-                 typeof product.price === 'string' ? parseFloat(product.price) : 99.99,
-          inStock: product.inStock === undefined ? true : !!product.inStock,
-          featured: product.featured === undefined ? false : !!product.featured,
-          isDeal: true, // Force this flag for consistency
-          slug: product.slug || product.name.toLowerCase().replace(/\s+/g, '-')
-        };
-      });
-      
-      await client.close();
-      
-      if (transformedProducts.length > 0) {
-        return res.json(transformedProducts);
-      }
-    }
-    
-    // Filter enhanced mock products for deal items
-    const dealProducts = enhancedMockProducts.filter(product => 
-      product.isDeal || 
-      (product.tags && (product.tags.includes('deal')))
-    );
-    
-    if (dealProducts.length > 0) {
-      console.log(`Returning ${dealProducts.length} mock deal products`);
-      return res.json(dealProducts);
-    }
-    
-    // If no deal products, return a subset of mock products as "deals"
-    const fakeDealProducts = enhancedMockProducts.slice(0, 3).map(product => ({
-      ...product,
-      isDeal: true,
-      tags: [...(product.tags || []), 'deal'],
-      // Only add originalPrice if it doesn't exist
-      ...(product.originalPrice ? {} : { originalPrice: (product.price * 1.3).toFixed(2) })
-    }));
-    
-    console.log('Returning fake deal products');
-    res.json(fakeDealProducts);
-  } catch (error) {
-    console.error('Error fetching deal products:', error);
-    // Even on error, return an empty array instead of an error object
-    res.json([]);
   }
 });
 
