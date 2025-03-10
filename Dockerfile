@@ -7,7 +7,7 @@ COPY package*.json ./
 RUN npm install
 
 # Install required packages directly
-RUN npm install express cors
+RUN npm install express cors mongodb
 
 # Copy server.js from root to app
 COPY server.js ./
