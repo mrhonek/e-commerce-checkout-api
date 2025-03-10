@@ -1072,22 +1072,26 @@ app.get('/api/products/sale', async (req, res) => {
   // Fallback products on sale (with price explicitly as number and thumbnails)
   const mockSale = [
     { 
-      _id: "sale1", 
+      _id: "3", 
       name: "Wireless Earbuds", 
       price: 49.99, 
       isFeatured: false, 
-      imageUrl: "https://via.placeholder.com/400x300/3498db/ffffff?text=Wireless+Earbuds",
-      thumbnailUrl: "https://via.placeholder.com/400x300/3498db/ffffff?text=Wireless+Earbuds",
-      inStock: true
+      imageUrl: `${req.protocol}://${req.get('host')}/public/sample-images/product3.jpg`,
+      thumbnailUrl: `${req.protocol}://${req.get('host')}/public/sample-images/product3.jpg`,
+      inStock: true,
+      onSale: true,
+      originalPrice: "69.99"
     },
     { 
-      _id: "sale2", 
+      _id: "4", 
       name: "Winter Jacket", 
       price: 79.99, 
       isFeatured: false, 
-      imageUrl: "https://via.placeholder.com/400x300/e74c3c/ffffff?text=Winter+Jacket",
-      thumbnailUrl: "https://via.placeholder.com/400x300/e74c3c/ffffff?text=Winter+Jacket",
-      inStock: true
+      imageUrl: `${req.protocol}://${req.get('host')}/public/sample-images/product4.jpg`,
+      thumbnailUrl: `${req.protocol}://${req.get('host')}/public/sample-images/product4.jpg`,
+      inStock: true,
+      onSale: true,
+      originalPrice: "99.99"
     }
   ];
   console.log('Returning mock products on sale as fallback');
@@ -1159,22 +1163,24 @@ app.get('/api/products/deals', async (req, res) => {
   // Fallback deal products (with price explicitly as number and thumbnails)
   const mockDeals = [
     { 
-      _id: "deal1", 
+      _id: "5", 
       name: "Smart Speaker", 
       price: 39.99, 
       isFeatured: false, 
-      imageUrl: "https://via.placeholder.com/400x300/3498db/ffffff?text=Smart+Speaker",
-      thumbnailUrl: "https://via.placeholder.com/400x300/3498db/ffffff?text=Smart+Speaker",
-      inStock: true
+      imageUrl: `${req.protocol}://${req.get('host')}/public/sample-images/product1.jpg`,
+      thumbnailUrl: `${req.protocol}://${req.get('host')}/public/sample-images/product1.jpg`,
+      inStock: true,
+      isDeal: true
     },
     { 
-      _id: "deal2", 
+      _id: "1", 
       name: "Kitchen Knife Set", 
       price: 69.99, 
       isFeatured: false, 
-      imageUrl: "https://via.placeholder.com/400x300/e74c3c/ffffff?text=Kitchen+Knife+Set",
-      thumbnailUrl: "https://via.placeholder.com/400x300/e74c3c/ffffff?text=Kitchen+Knife+Set",
-      inStock: true
+      imageUrl: `${req.protocol}://${req.get('host')}/public/sample-images/product2.jpg`,
+      thumbnailUrl: `${req.protocol}://${req.get('host')}/public/sample-images/product2.jpg`,
+      inStock: true,
+      isDeal: true
     }
   ];
   console.log('Returning mock deal products as fallback');
@@ -1247,23 +1253,23 @@ app.get('/api/products/category/:category', async (req, res) => {
   // Fallback products by category (with price explicitly as number and thumbnails)
   const mockCategory = [
     { 
-      _id: "homekit1", 
+      _id: "1", // Using numeric IDs that match what MongoDB would generate
       name: "Coffee Maker", 
       price: 79.99, 
       category: "Home & Kitchen",
       isFeatured: false, 
-      imageUrl: "https://via.placeholder.com/400x300/3498db/ffffff?text=Coffee+Maker",
-      thumbnailUrl: "https://via.placeholder.com/400x300/3498db/ffffff?text=Coffee+Maker",
+      imageUrl: `${req.protocol}://${req.get('host')}/public/sample-images/product1.jpg`,
+      thumbnailUrl: `${req.protocol}://${req.get('host')}/public/sample-images/product1.jpg`,
       inStock: true
     },
     { 
-      _id: "beauty1", 
+      _id: "2", 
       name: "Face Serum", 
       price: 24.99, 
       category: "Beauty",
       isFeatured: false, 
-      imageUrl: "https://via.placeholder.com/400x300/e74c3c/ffffff?text=Face+Serum",
-      thumbnailUrl: "https://via.placeholder.com/400x300/e74c3c/ffffff?text=Face+Serum",
+      imageUrl: `${req.protocol}://${req.get('host')}/public/sample-images/product2.jpg`,
+      thumbnailUrl: `${req.protocol}://${req.get('host')}/public/sample-images/product2.jpg`,
       inStock: true
     }
   ];
@@ -1283,12 +1289,31 @@ app.get('/api/products/:id', async (req, res) => {
       const db = client.db();
       let product;
       
-      // Check if ID is a valid MongoDB ObjectId
+      // Try various ways to find the product
+      // 1. First check if ID is a valid MongoDB ObjectId
       if (id.match(/^[0-9a-fA-F]{24}$/)) {
+        console.log(`Looking for product with MongoDB ObjectId: ${id}`);
         product = await db.collection('products').findOne({ _id: new ObjectId(id) });
-      } else {
-        // Try by product slug if not an ObjectId
+      }
+      
+      // 2. If not found, try by string ID (if products use string IDs)
+      if (!product) {
+        console.log(`Looking for product with string ID: ${id}`);
+        product = await db.collection('products').findOne({ _id: id });
+      }
+      
+      // 3. Try by product slug if not found by ID
+      if (!product) {
+        console.log(`Looking for product with slug: ${id}`);
         product = await db.collection('products').findOne({ slug: id });
+      }
+      
+      // 4. Try by name (case-insensitive)
+      if (!product) {
+        console.log(`Looking for product with name: ${id}`);
+        product = await db.collection('products').findOne({ 
+          name: { $regex: new RegExp('^' + id + '$', 'i') }
+        });
       }
       
       await client.close();
@@ -1330,56 +1355,30 @@ app.get('/api/products/:id', async (req, res) => {
           slug: product.slug || product.name.toLowerCase().replace(/\s+/g, '-')
         };
         
-        console.log('Product after transformation:', {
-          _id: transformedProduct._id,
-          name: transformedProduct.name,
-          price: transformedProduct.price,
-          imageUrl: transformedProduct.imageUrl,
-          thumbnailUrl: transformedProduct.thumbnailUrl,
-          inStock: transformedProduct.inStock
-        });
-        
         return res.json(transformedProduct);
       }
     }
     
-    // If product not found in DB or no DB connection, check for mock products
-    if (id === 'prod1') {
-      return res.json({ 
-        _id: "prod1", 
-        name: "Office Chair", 
-        price: 249.99, 
-        isFeatured: true, 
-        imageUrl: "https://via.placeholder.com/400x300/3498db/ffffff?text=Office+Chair",
-        thumbnailUrl: "https://via.placeholder.com/400x300/3498db/ffffff?text=Office+Chair",
-        inStock: true 
-      });
-    } else if (id === 'prod2') {
-      return res.json({ 
-        _id: "prod2", 
-        name: "Headphones", 
-        price: 199.99, 
-        isFeatured: true, 
-        imageUrl: "https://via.placeholder.com/400x300/e74c3c/ffffff?text=Headphones",
-        thumbnailUrl: "https://via.placeholder.com/400x300/e74c3c/ffffff?text=Headphones",
-        inStock: true
-      });
-    } else if (id === 'prod3') {
-      return res.json({ 
-        _id: "prod3", 
-        name: "Laptop Stand", 
-        price: 79.99, 
-        isFeatured: false, 
-        imageUrl: "https://via.placeholder.com/400x300/2ecc71/ffffff?text=Laptop+Stand",
-        thumbnailUrl: "https://via.placeholder.com/400x300/2ecc71/ffffff?text=Laptop+Stand",
-        inStock: true
-      });
+    // If we get here, no product was found - check the mock products
+    console.log(`Product ${id} not found in database, checking mockProducts`);
+    
+    // Check our mock products by ID and return if found
+    const mockProduct = [...mockCategory, ...mockSale, ...mockDeals].find(p => 
+      p._id === id || 
+      p.slug === id || 
+      p.name.toLowerCase() === id.toLowerCase()
+    );
+    
+    if (mockProduct) {
+      console.log(`Found matching mock product: ${mockProduct.name}`);
+      return res.json(mockProduct);
     }
     
-    // If not a known mock product ID, return 404
-    return res.status(404).json({ error: 'Product not found' });
+    // Not found in DB or mocks
+    console.log(`Product ${id} not found in database or mock data`);
+    res.status(404).json({ error: 'Product not found' });
   } catch (error) {
-    console.error(`Error fetching product ${id}:`, error.message);
+    console.error('Error fetching product by ID:', error);
     res.status(500).json({ error: 'Failed to fetch product' });
   }
 });
