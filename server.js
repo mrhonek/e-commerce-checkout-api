@@ -491,6 +491,82 @@ app.delete('/api/cart/items/:itemId', (req, res) => {
   return res.json({ items: cartData.items });
 });
 
+// Update cart item quantity
+app.put('/api/cart/items/:itemId', (req, res) => {
+  const { itemId } = req.params;
+  const { quantity } = req.body;
+  
+  console.log(`PUT /api/cart/items/${itemId} with quantity:`, quantity);
+  
+  if (!quantity || isNaN(Number(quantity))) {
+    return res.status(400).json({ error: 'Valid quantity is required' });
+  }
+  
+  // Find the item in the cart
+  const itemIndex = cartData.items.findIndex(item => item.id === itemId);
+  
+  if (itemIndex === -1) {
+    return res.status(404).json({ error: 'Item not found in cart' });
+  }
+  
+  // Update the quantity
+  cartData.items[itemIndex].quantity = Number(quantity);
+  
+  console.log('Updated cart item quantity, new cart:', { items: cartData.items });
+  
+  // Return the same format as other cart endpoints
+  return res.json({ items: cartData.items });
+});
+
+// Add PATCH endpoint as an alternative for updating quantity
+app.patch('/api/cart/items/:itemId', (req, res) => {
+  const { itemId } = req.params;
+  const { quantity } = req.body;
+  
+  console.log(`PATCH /api/cart/items/${itemId} with quantity:`, quantity);
+  
+  if (!quantity || isNaN(Number(quantity))) {
+    return res.status(400).json({ error: 'Valid quantity is required' });
+  }
+  
+  // Find the item in the cart
+  const itemIndex = cartData.items.findIndex(item => item.id === itemId);
+  
+  if (itemIndex === -1) {
+    return res.status(404).json({ error: 'Item not found in cart' });
+  }
+  
+  // Update the quantity
+  cartData.items[itemIndex].quantity = Number(quantity);
+  
+  console.log('Updated cart item quantity, new cart:', { items: cartData.items });
+  
+  // Return the same format as other cart endpoints
+  return res.json({ items: cartData.items });
+});
+
+// Add endpoint for updating entire cart
+app.put('/api/cart', (req, res) => {
+  const { items } = req.body;
+  
+  console.log('PUT /api/cart with body:', req.body);
+  
+  if (!items || !Array.isArray(items)) {
+    return res.status(400).json({ error: 'Cart items array is required' });
+  }
+  
+  // Replace the cart items
+  cartData.items = items.map(item => ({
+    ...item,
+    quantity: Number(item.quantity)
+  }));
+  
+  console.log('Replaced cart items, new cart:', { items: cartData.items });
+  
+  // Return the same format as other cart endpoints
+  return res.json({ items: cartData.items });
+});
+
 // Add other non-cart related endpoints here
 // ...
 
@@ -677,6 +753,57 @@ app.post('/api/add-to-cart-debug', (req, res) => {
   }
   
   // Return current cart as items property
+  return res.json({ items: cartData.items });
+});
+
+// Add more extensive debugging for all cart requests
+app.use('/api/cart*', (req, res, next) => {
+  console.log('=== CART REQUEST DEBUGGING ===');
+  console.log('Method:', req.method);
+  console.log('URL:', req.url);
+  console.log('Path:', req.path);
+  console.log('Params:', req.params);
+  console.log('Query:', req.query);
+  console.log('Body:', req.body);
+  console.log('Headers:', {
+    contentType: req.headers['content-type'],
+    accept: req.headers.accept
+  });
+  console.log('============================');
+  next();
+});
+
+// Add more flexible update endpoint that checks various request formats
+app.all('/api/cart/update*', (req, res) => {
+  console.log('=== FLEXIBLE CART UPDATE ===');
+  console.log('URL:', req.url);
+  console.log('Method:', req.method);
+  console.log('Body:', req.body);
+  console.log('Params:', req.params);
+  console.log('Query:', req.query);
+  
+  // Try to extract itemId and quantity from various locations
+  let itemId = req.params.itemId || req.query.itemId || req.query.id || req.body.itemId || req.body.id;
+  let quantity = req.body.quantity || req.query.quantity || 1;
+  
+  console.log('Extracted itemId:', itemId);
+  console.log('Extracted quantity:', quantity);
+  
+  if (!itemId) {
+    return res.status(400).json({ error: 'Item ID is required' });
+  }
+  
+  // Find the item
+  const itemIndex = cartData.items.findIndex(item => item.id === itemId);
+  
+  if (itemIndex === -1) {
+    return res.status(404).json({ error: 'Item not found in cart' });
+  }
+  
+  // Update quantity
+  cartData.items[itemIndex].quantity = Number(quantity);
+  
+  // Return the standard format
   return res.json({ items: cartData.items });
 });
 
