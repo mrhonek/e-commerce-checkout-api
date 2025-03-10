@@ -54,6 +54,15 @@ let emailSetupError = null;
 async function setupEmailTransporter() {
   console.log('Starting email setup...');
   
+  // Debug all email-related environment variables  
+  console.log('Email environment variables:');
+  console.log('- EMAIL_FROM:', process.env.EMAIL_FROM);
+  console.log('- SMTP_FROM:', process.env.SMTP_FROM);
+  console.log('- EMAIL_USER:', process.env.EMAIL_USER);
+  console.log('- SMTP_USER:', process.env.SMTP_USER);
+  console.log('- EMAIL_HOST:', process.env.EMAIL_HOST);
+  console.log('- SMTP_HOST:', process.env.SMTP_HOST);
+  
   try {
     // Check both naming conventions for environment variables
     const host = process.env.EMAIL_HOST || process.env.SMTP_HOST;
@@ -61,20 +70,35 @@ async function setupEmailTransporter() {
     const user = process.env.EMAIL_USER || process.env.SMTP_USER;
     const pass = process.env.EMAIL_PASS || process.env.SMTP_PASSWORD;
     
-    // Get the from email address - check both variables
-    // If EMAIL_FROM is set, use it regardless of format
-    // If not, construct a from address using the user email but with a proper name
-    let from = process.env.EMAIL_FROM;
+    // IMPORTANT: Define the from address here to pass directly to transport config
+    // Don't defer it to the mail options since that might not be respected
+    let fromAddress = null;
     
-    if (!from && user) {
-      // If EMAIL_FROM is not set but we have a user email, format it properly
-      from = `"RhnkShop" <${user}>`;
-    } else if (!from) {
-      // Fallback if nothing is set
-      from = '"RhnkShop" <shop@example.com>';
+    // Try EMAIL_FROM first
+    if (process.env.EMAIL_FROM) {
+      fromAddress = process.env.EMAIL_FROM;
+      console.log('Using EMAIL_FROM for from address:', fromAddress);
+    } 
+    // Then try SMTP_FROM
+    else if (process.env.SMTP_FROM) {
+      fromAddress = process.env.SMTP_FROM;
+      console.log('Using SMTP_FROM for from address:', fromAddress);
+    } 
+    // Format with RhnkShop name + user email if no explicit FROM set
+    else if (user) {
+      // Make sure it's properly formatted with name + angle brackets
+      if (!user.includes('<') && !user.includes('>')) {
+        fromAddress = `"RhnkShop" <${user}>`;
+      } else {
+        fromAddress = user;
+      }
+      console.log('Using formatted user email for from address:', fromAddress);
+    } 
+    // Last resort fallback
+    else {
+      fromAddress = '"RhnkShop" <shop@example.com>';
+      console.log('Using fallback for from address:', fromAddress);
     }
-    
-    console.log('Using from email address:', from);
     
     // If we have real email credentials in environment variables, use those
     if (host && user && pass) {
@@ -87,6 +111,8 @@ async function setupEmailTransporter() {
           user: user,
           pass: pass
         },
+        // Force the from address at the transport level
+        from: fromAddress,
         // Add debug option for troubleshooting
         debug: true
       };
@@ -96,7 +122,7 @@ async function setupEmailTransporter() {
         port: transport.port,
         secure: transport.secure,
         auth: { user: transport.auth.user },
-        fromEmail: from
+        fromEmail: fromAddress
       }));
       
       emailTransporter = nodemailer.createTransport(transport);
@@ -333,25 +359,28 @@ async function sendOrderConfirmationEmail(order, customerEmail) {
     const orderId = order.id || order.orderId || order._id || '';
     const formattedOrderId = orderId.startsWith('ORD-') ? orderId : `ORD-${orderId}`;
     
-    // Use configured from email if available
-    // Prioritize EMAIL_FROM over automatically formatted addresses
-    let fromEmail = process.env.EMAIL_FROM;
+    // Get the from email address directly from the transporter if possible
+    // This is the most reliable way to ensure it's consistent
+    let fromEmail = emailTransporter.options?.from || process.env.EMAIL_FROM;
     
+    // If that's not available, try the other sources
     if (!fromEmail) {
-      // If EMAIL_FROM not set, try SMTP_FROM
-      fromEmail = process.env.SMTP_FROM;
-      
-      // If neither is set, use the authenticated user with proper format
-      if (!fromEmail && (process.env.EMAIL_USER || process.env.SMTP_USER)) {
+      if (process.env.EMAIL_FROM) {
+        fromEmail = process.env.EMAIL_FROM;
+      } else if (process.env.SMTP_FROM) {
+        fromEmail = process.env.SMTP_FROM;
+      } else {
+        // Last resort - format with RhnkShop name
         const user = process.env.EMAIL_USER || process.env.SMTP_USER;
-        fromEmail = `"RhnkShop" <${user}>`;
-      } else if (!fromEmail) {
-        // Fallback if nothing is set
-        fromEmail = '"RhnkShop" <shop@example.com>';
+        if (user) {
+          fromEmail = `"RhnkShop" <${user}>`;
+        } else {
+          fromEmail = '"RhnkShop" <shop@example.com>';
+        }
       }
     }
     
-    console.log('Using from email for order confirmation:', fromEmail);
+    console.log(`Using from email for order confirmation: "${fromEmail}"`);
     
     // Create email content
     const mailOptions = {
@@ -1639,6 +1668,59 @@ app.post('/api/webhook/stripe', async (req, res) => {
     res.status(500).send(`Webhook Error: ${err.message}`);
   }
 });
+
+// Add a debug endpoint to check email configuration
+// Only accessible in non-production environment or with debug flag
+app.get('/api/debug/email-config', (req, res) => {
+  // Limit access to this endpoint for security
+  if (process.env.NODE_ENV === 'production' && !process.env.ALLOW_DEBUG_ENDPOINTS) {
+    return res.status(403).json({ error: 'Debug endpoints not available in production' });
+  }
+  
+  // Collect all email-related environment variables (masking sensitive info)
+  const config = {
+    EMAIL_FROM: process.env.EMAIL_FROM || 'Not set',
+    SMTP_FROM: process.env.SMTP_FROM || 'Not set',
+    EMAIL_HOST: process.env.EMAIL_HOST || 'Not set',
+    SMTP_HOST: process.env.SMTP_HOST || 'Not set',
+    EMAIL_PORT: process.env.EMAIL_PORT || 'Not set',
+    SMTP_PORT: process.env.SMTP_PORT || 'Not set',
+    EMAIL_USER: process.env.EMAIL_USER ? maskEmail(process.env.EMAIL_USER) : 'Not set',
+    SMTP_USER: process.env.SMTP_USER ? maskEmail(process.env.SMTP_USER) : 'Not set',
+    EMAIL_PASS: process.env.EMAIL_PASS ? '********' : 'Not set',
+    SMTP_PASSWORD: process.env.SMTP_PASSWORD ? '********' : 'Not set',
+    EMAIL_SECURE: process.env.EMAIL_SECURE || 'Not set',
+    SMTP_SECURE: process.env.SMTP_SECURE || 'Not set',
+    transporterConfigured: !!emailTransporter,
+    transporterFrom: emailTransporter?.options?.from || 'Not available'
+  };
+  
+  // Return the config information
+  res.json({
+    message: 'Email configuration',
+    config,
+    environment: process.env.NODE_ENV || 'development',
+    railwayProject: process.env.RAILWAY_PROJECT_NAME || 'Unknown',
+    railwayService: process.env.RAILWAY_SERVICE_NAME || 'Unknown'
+  });
+});
+
+// Helper function to mask email addresses for privacy
+function maskEmail(email) {
+  if (!email || !email.includes('@')) return '****@****.com';
+  
+  const parts = email.split('@');
+  let username = parts[0];
+  const domain = parts[1];
+  
+  if (username.length <= 3) {
+    username = '***';
+  } else {
+    username = username.substring(0, 2) + '***' + username.substring(username.length - 1);
+  }
+  
+  return `${username}@${domain}`;
+}
 
 // Start the server
 app.listen(port, () => {
