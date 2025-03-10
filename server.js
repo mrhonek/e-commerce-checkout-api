@@ -30,9 +30,13 @@ console.log('Environment:', process.env.NODE_ENV || 'development');
 console.log('Port:', port);
 console.log('MongoDB URI exists:', !!process.env.MONGODB_URI);
 console.log('Email settings:', {
-  host: process.env.EMAIL_HOST ? 'Set' : 'Not set',
-  user: process.env.EMAIL_USER ? 'Set' : 'Not set',
-  pass: process.env.EMAIL_PASS ? 'Set' : 'Not set'
+  EMAIL_HOST: process.env.EMAIL_HOST ? 'Set' : 'Not set',
+  EMAIL_USER: process.env.EMAIL_USER ? 'Set' : 'Not set',
+  EMAIL_PASS: process.env.EMAIL_PASS ? 'Set' : 'Not set',
+  SMTP_HOST: process.env.SMTP_HOST ? 'Set' : 'Not set',
+  SMTP_USER: process.env.SMTP_USER ? 'Set' : 'Not set',
+  SMTP_PASSWORD: process.env.SMTP_PASSWORD ? 'Set' : 'Not set',
+  EMAIL_FROM: process.env.EMAIL_FROM ? 'Set' : 'Not set'
 });
 
 // Configure email transporter
@@ -46,16 +50,23 @@ async function setupEmailTransporter() {
   console.log('Starting email setup...');
   
   try {
+    // Check both naming conventions for environment variables
+    const host = process.env.EMAIL_HOST || process.env.SMTP_HOST;
+    const port = process.env.EMAIL_PORT || process.env.SMTP_PORT || 587;
+    const user = process.env.EMAIL_USER || process.env.SMTP_USER;
+    const pass = process.env.EMAIL_PASS || process.env.SMTP_PASSWORD;
+    const from = process.env.EMAIL_FROM || 'shop@example.com';
+    
     // If we have real email credentials in environment variables, use those
-    if (process.env.EMAIL_HOST && process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+    if (host && user && pass) {
       console.log('Setting up email with real credentials');
       const transport = {
-        host: process.env.EMAIL_HOST,
-        port: process.env.EMAIL_PORT || 587,
-        secure: process.env.EMAIL_SECURE === 'true',
+        host: host,
+        port: port,
+        secure: port === '465' || process.env.EMAIL_SECURE === 'true' || process.env.SMTP_SECURE === 'true',
         auth: {
-          user: process.env.EMAIL_USER,
-          pass: process.env.EMAIL_PASS
+          user: user,
+          pass: pass
         },
         // Add debug option for troubleshooting
         debug: true
@@ -65,7 +76,8 @@ async function setupEmailTransporter() {
         host: transport.host,
         port: transport.port,
         secure: transport.secure,
-        auth: { user: transport.auth.user }
+        auth: { user: transport.auth.user },
+        fromEmail: from
       }));
       
       emailTransporter = nodemailer.createTransport(transport);
@@ -170,9 +182,12 @@ async function sendOrderConfirmationEmail(order, customerEmail) {
                  (order.items && order.items.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 1)), 0)) || 
                  0;
     
+    // Use configured from email if available
+    const fromEmail = process.env.EMAIL_FROM || process.env.SMTP_FROM || '"E-Commerce Shop" <shop@example.com>';
+    
     // Create email content
     const mailOptions = {
-      from: '"E-Commerce Shop" <shop@example.com>',
+      from: fromEmail,
       to: email,
       subject: `Order Confirmation #${order.id || order.orderId || 'Unknown'}`,
       html: `
@@ -225,6 +240,7 @@ async function sendOrderConfirmationEmail(order, customerEmail) {
     };
     
     console.log('Prepared mail options:', { 
+      from: mailOptions.from,
       to: mailOptions.to, 
       subject: mailOptions.subject,
       hasHtml: !!mailOptions.html
@@ -1142,6 +1158,19 @@ app.all('/api/cart/update*', (req, res) => {
   
   // Return the standard format
   return res.json({ items: cartData.items });
+});
+
+// DELETE endpoint to clear the entire cart
+app.delete('/api/cart', (req, res) => {
+  console.log('DELETE /api/cart - Clearing entire cart');
+  
+  // Empty the cart
+  cartData.items = [];
+  
+  console.log('Cart cleared');
+  
+  // Return empty cart
+  return res.json({ items: [] });
 });
 
 // Order success/confirmation endpoint
