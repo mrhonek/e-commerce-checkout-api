@@ -5,6 +5,8 @@ const { MongoClient, ObjectId } = require('mongodb');
 const nodemailer = require('nodemailer');
 const util = require('util');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+const fs = require('fs');
+const path = require('path');
 
 const app = express();
 const port = process.env.PORT || 8080;
@@ -469,26 +471,62 @@ async function sendOrderConfirmationEmail(order, customerEmail) {
   }
 }
 
-// Request logger middleware - add before other middleware
-app.use((req, res, next) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
-  console.log('Request body:', req.body);
-  console.log('Request query:', req.query);
-  console.log('Request params:', req.params);
-
-  // Capture the original res.json to log response
-  const originalJson = res.json;
-  res.json = function(body) {
-    console.log(`Response for ${req.method} ${req.url}:`, 
-                body ? JSON.stringify(body).substring(0, 200) + '...' : 'undefined');
-    return originalJson.call(this, body);
-  };
-  
-  next();
-});
-
 // Middleware
 app.use(cors());
+
+// Serve static files from a public directory
+app.use('/static', express.static('public'));
+
+// Create public/images directory if it doesn't exist
+const imagesDir = path.join(__dirname, 'public', 'images');
+
+try {
+  if (!fs.existsSync(path.join(__dirname, 'public'))) {
+    fs.mkdirSync(path.join(__dirname, 'public'));
+  }
+  if (!fs.existsSync(imagesDir)) {
+    fs.mkdirSync(imagesDir);
+  }
+  console.log('Static directories setup complete');
+} catch (error) {
+  console.error('Error setting up static directories:', error);
+}
+
+// Helper to get correct image URL
+function getImageUrl(imagePath) {
+  if (!imagePath) return null;
+  
+  // If it's already an absolute URL with http/https, return as is
+  if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+    return imagePath;
+  }
+  
+  // If it's a relative path, make it absolute
+  const baseUrl = process.env.BASE_URL || 'https://e-commerce-checkout-api-production.up.railway.app';
+  
+  // Handle different path formats
+  if (imagePath.startsWith('/')) {
+    return `${baseUrl}${imagePath}`;
+  } else {
+    return `${baseUrl}/static/images/${imagePath}`;
+  }
+}
+
+// Add placeholder image URLs to use as fallbacks
+const placeholderImages = [
+  "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500&q=80",
+  "https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=500&q=80",
+  "https://images.unsplash.com/photo-1491553895911-0055eca6402d?w=500&q=80",
+  "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500&q=80"
+];
+
+// Get random placeholder image
+function getPlaceholderImage(productName) {
+  if (!productName) return placeholderImages[0];
+  // Use product name to deterministically select an image (for consistency)
+  const index = productName.length % placeholderImages.length;
+  return placeholderImages[index];
+}
 
 // Additional CORS headers for better compatibility
 app.use((req, res, next) => {
@@ -575,13 +613,14 @@ app.get('/api/products', async (req, res) => {
         let mainImage = null;
         
         if (product.images && product.images.length > 0) {
-          mainImage = product.images[0];
+          mainImage = getImageUrl(product.images[0]);
         } else if (product.image) {
-          mainImage = product.image;
+          mainImage = getImageUrl(product.image);
         } else if (product.imageUrl) {
-          mainImage = product.imageUrl;
+          mainImage = getImageUrl(product.imageUrl);
         } else {
-          mainImage = "https://via.placeholder.com/400x300/3498db/ffffff?text=Product";
+          // Use a nicer looking placeholder from Unsplash instead of placeholder.com
+          mainImage = getPlaceholderImage(product.name);
         }
         
         // Ensure the price is a valid number
@@ -592,16 +631,18 @@ app.get('/api/products', async (req, res) => {
         return {
           ...product,
           _id: product._id.toString(),
-          // Use the same image for both main and thumbnail (client will scale)
+          // Use the same image for both properties for compatibility
+          image: mainImage,
           imageUrl: mainImage,
           thumbnailUrl: mainImage,
           // Ensure price is a valid number
           price: price,
           // Ensure stock status is set
-          inStock: product.inStock !== undefined ? product.inStock : 
-                  product.stock !== undefined ? product.stock > 0 : 
-                  product.quantity !== undefined ? product.quantity > 0 : 
-                  true // Default to in stock if no stock info available
+          inStock: product.inStock === undefined ? true : !!product.inStock,
+          // Ensure featured flag is set
+          featured: product.featured === undefined ? false : !!product.featured,
+          // Add a formatted slug for nicer URLs (if not already present)
+          slug: product.slug || product.name.toLowerCase().replace(/\s+/g, '-')
         };
       });
       
@@ -683,13 +724,14 @@ app.get('/api/products/featured', async (req, res) => {
         let mainImage = null;
         
         if (product.images && product.images.length > 0) {
-          mainImage = product.images[0];
+          mainImage = getImageUrl(product.images[0]);
         } else if (product.image) {
-          mainImage = product.image;
+          mainImage = getImageUrl(product.image);
         } else if (product.imageUrl) {
-          mainImage = product.imageUrl;
+          mainImage = getImageUrl(product.imageUrl);
         } else {
-          mainImage = "https://via.placeholder.com/400x300/3498db/ffffff?text=Product";
+          // Use a nicer looking placeholder from Unsplash instead of placeholder.com
+          mainImage = getPlaceholderImage(product.name);
         }
         
         // Ensure the price is a valid number
@@ -700,16 +742,18 @@ app.get('/api/products/featured', async (req, res) => {
         return {
           ...product,
           _id: product._id.toString(),
-          // Use the same image for both main and thumbnail (client will scale)
+          // Use the same image for both properties for compatibility
+          image: mainImage,
           imageUrl: mainImage,
           thumbnailUrl: mainImage,
           // Ensure price is a valid number
           price: price,
           // Ensure stock status is set
-          inStock: product.inStock !== undefined ? product.inStock : 
-                  product.stock !== undefined ? product.stock > 0 : 
-                  product.quantity !== undefined ? product.quantity > 0 : 
-                  true
+          inStock: product.inStock === undefined ? true : !!product.inStock,
+          // Ensure featured flag is set
+          featured: product.featured === undefined ? false : !!product.featured,
+          // Add a formatted slug for nicer URLs (if not already present)
+          slug: product.slug || product.name.toLowerCase().replace(/\s+/g, '-')
         };
       });
       
@@ -776,13 +820,13 @@ app.get('/api/products/:id', async (req, res) => {
         let mainImage = null;
         
         if (product.images && product.images.length > 0) {
-          mainImage = product.images[0];
+          mainImage = getImageUrl(product.images[0]);
         } else if (product.image) {
-          mainImage = product.image;
+          mainImage = getImageUrl(product.image);
         } else if (product.imageUrl) {
-          mainImage = product.imageUrl;
+          mainImage = getImageUrl(product.imageUrl);
         } else {
-          mainImage = "https://via.placeholder.com/400x300/3498db/ffffff?text=Product";
+          mainImage = getPlaceholderImage(product.name);
         }
         
         // Ensure the price is a valid number
@@ -795,15 +839,17 @@ app.get('/api/products/:id', async (req, res) => {
           ...product,
           _id: product._id.toString(),
           // Use the same image for both main and thumbnail
+          image: mainImage,
           imageUrl: mainImage,
           thumbnailUrl: mainImage,
           // Ensure price is a valid number
           price: price,
           // Ensure stock status is set
-          inStock: product.inStock !== undefined ? product.inStock : 
-                  product.stock !== undefined ? product.stock > 0 : 
-                  product.quantity !== undefined ? product.quantity > 0 : 
-                  true // Default to in stock if no stock info available
+          inStock: product.inStock === undefined ? true : !!product.inStock,
+          // Ensure featured flag is set
+          featured: product.featured === undefined ? false : !!product.featured,
+          // Add a formatted slug for nicer URLs (if not already present)
+          slug: product.slug || product.name.toLowerCase().replace(/\s+/g, '-')
         };
         
         console.log('Product after transformation:', {
@@ -1721,6 +1767,103 @@ function maskEmail(email) {
   
   return `${username}@${domain}`;
 }
+
+// Add some sample images to the public directory
+async function seedSampleImages() {
+  console.log('Checking for sample images to seed...');
+  
+  // Download a sample image from unsplash to the public directory
+  const downloadImage = async (url, filename) => {
+    try {
+      const fullPath = path.join(imagesDir, filename);
+      
+      // Skip if the file already exists
+      if (fs.existsSync(fullPath)) {
+        console.log(`Sample image ${filename} already exists, skipping`);
+        return true;
+      }
+      
+      // Create a write stream for the image
+      const fileStream = fs.createWriteStream(fullPath);
+      
+      // Use fetch to download the image
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch image: ${response.status} ${response.statusText}`);
+      }
+      
+      // Pipe the response to the file
+      const arrayBuffer = await response.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      fs.writeFileSync(fullPath, buffer);
+      
+      console.log(`Downloaded sample image ${filename}`);
+      return true;
+    } catch (error) {
+      console.error(`Error downloading image ${filename}:`, error);
+      return false;
+    }
+  };
+  
+  // Sample images to download
+  const samplesToDownload = [
+    { url: "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500&q=80", filename: "product1.jpg" },
+    { url: "https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=500&q=80", filename: "product2.jpg" },
+    { url: "https://images.unsplash.com/photo-1491553895911-0055eca6402d?w=500&q=80", filename: "product3.jpg" },
+    { url: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500&q=80", filename: "product4.jpg" }
+  ];
+  
+  // Download all sample images
+  for (const sample of samplesToDownload) {
+    await downloadImage(sample.url, sample.filename);
+  }
+  
+  console.log('Sample image seeding complete');
+}
+
+// Call the seed function on startup
+seedSampleImages().catch(err => {
+  console.error('Error seeding sample images:', err);
+});
+
+// Add an endpoint to get a list of sample images
+app.get('/api/sample-images', (req, res) => {
+  try {
+    // List all files in the images directory
+    const files = fs.readdirSync(imagesDir);
+    
+    // Filter for image files only
+    const imageFiles = files.filter(file => {
+      const ext = path.extname(file).toLowerCase();
+      return ['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(ext);
+    });
+    
+    // Generate URLs for all images
+    const imageUrls = imageFiles.map(file => {
+      return {
+        filename: file,
+        url: getImageUrl(file)
+      };
+    });
+    
+    // Add placeholder URLs from unsplash
+    const allImages = [
+      ...imageUrls,
+      ...placeholderImages.map((url, i) => ({
+        filename: `placeholder${i+1}.jpg`,
+        url
+      }))
+    ];
+    
+    res.json({
+      message: 'Sample images available',
+      images: allImages
+    });
+  } catch (error) {
+    console.error('Error listing sample images:', error);
+    res.status(500).json({ error: 'Failed to list sample images' });
+  }
+});
 
 // Start the server
 app.listen(port, () => {
