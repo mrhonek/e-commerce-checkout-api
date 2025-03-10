@@ -987,10 +987,44 @@ app.get('/api/payment/methods', (req, res) => {
   res.json(paymentMethods);
 });
 
+// Create a Stripe payment intent for an order
+async function createPaymentIntent(order) {
+  try {
+    if (!process.env.STRIPE_SECRET_KEY) {
+      console.error('Missing STRIPE_SECRET_KEY environment variable');
+      return null;
+    }
+    
+    const amount = Math.round(order.total * 100); // Convert to cents
+    
+    console.log(`Creating payment intent for order ${order.id} with amount ${amount} cents`);
+    
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: amount,
+      currency: 'usd',
+      metadata: {
+        orderId: order.id || order.orderId || '',
+        customerEmail: order.customer?.email || ''
+      },
+      description: `Order ${order.id || order.orderId || 'Unknown'}`
+    });
+    
+    console.log(`Payment intent created: ${paymentIntent.id}`);
+    
+    return {
+      paymentIntentId: paymentIntent.id,
+      clientSecret: paymentIntent.client_secret
+    };
+  } catch (error) {
+    console.error('Error creating payment intent:', error);
+    return null;
+  }
+}
+
 // Process order - updated to send confirmation email with better error handling
 app.post('/api/orders', async (req, res) => {
   console.log('=== PROCESSING ORDER ===');
-  console.log('Request body:', JSON.stringify(req.body, null, 2).substring(0, 500) + '...');
+  console.log('Request body:', JSON.stringify(req.body, null, 2).substring(0, 500) + '...';
   
   // Extract order data with flexible field names
   const orderData = req.body;
@@ -1112,11 +1146,26 @@ app.post('/api/orders', async (req, res) => {
     customer
   };
   
+  // Create a payment intent in Stripe
+  let paymentData = null;
+  if (process.env.STRIPE_SECRET_KEY) {
+    try {
+      paymentData = await createPaymentIntent(order);
+      if (paymentData) {
+        order.payment.stripePaymentIntentId = paymentData.paymentIntentId;
+        order.payment.stripeClientSecret = paymentData.clientSecret;
+      }
+    } catch (error) {
+      console.error('Failed to create payment intent:', error);
+    }
+  }
+  
   console.log('Successfully created order:', { 
     id: order.id, 
     status: order.status,
     itemCount: items.length,
-    total: total
+    total: total,
+    stripePaymentIntent: order.payment.stripePaymentIntentId || 'Not created'
   });
   
   // Extract customer email for confirmation
@@ -1145,7 +1194,7 @@ app.post('/api/orders', async (req, res) => {
   console.log('Order processing complete');
 });
 
-// Alternative checkout endpoint - also with email confirmation
+// Checkout endpoint - updated to be more flexible with request format
 app.post('/api/checkout', async (req, res) => {
   console.log('=== CHECKOUT ENDPOINT CALLED ===');
   console.log('Request body:', JSON.stringify(req.body, null, 2).substring(0, 500) + '...');
@@ -1157,71 +1206,101 @@ app.post('/api/checkout', async (req, res) => {
   let items = [];
   if (Array.isArray(orderData.items)) {
     items = orderData.items;
-  } else if (orderData.cart && Array.isArray(orderData.cart.items)) {
+  } else if (orderData.cart?.items && Array.isArray(orderData.cart.items)) {
     items = orderData.cart.items;
   } else if (Array.isArray(orderData.cart)) {
     items = orderData.cart;
-  } else if (orderData.products && Array.isArray(orderData.products)) {
+  } else if (Array.isArray(orderData.products)) {
     items = orderData.products;
   }
   
-  // Calculate order total
-  let total = 0;
+  console.log(`Found ${items.length} items for order`);
+  
+  // Default values for order
+  const total = orderData.total || items.reduce((sum, item) => {
+    const price = item.price || 0;
+    const quantity = item.quantity || 1;
+    return sum + (price * quantity);
+  }, 0);
+  
+  // Generate order ID
+  const timestamp = Date.now();
+  const orderId = `ORD-${timestamp}`;
+  
+  // Create order object
+  const order = {
+    id: orderId,
+    items,
+    total,
+    customer: orderData.customer || orderData.customerInfo || {},
+    shipping: orderData.shipping || orderData.shippingInfo || {},
+    billing: orderData.billing || orderData.billingInfo || {},
+    status: 'processing',
+    createdAt: new Date().toISOString()
+  };
+  
+  // Calculate subtotal, tax, and shipping
+  let subtotal = 0;
   if (items && items.length > 0) {
-    total = items.reduce((sum, item) => {
+    subtotal = items.reduce((sum, item) => {
       const price = item.price || item.unitPrice || item.product?.price || 0;
       const quantity = item.quantity || 1;
       return sum + (price * quantity);
     }, 0);
-  } else if (orderData.total) {
-    total = Number(orderData.total);
   }
   
-  // Generate order ID
-  const orderId = `order_${Date.now()}`;
+  const shippingCost = orderData.shipping?.cost || 5.99;
+  const tax = orderData.tax || Number((subtotal * 0.08).toFixed(2));
   
-  // Create order with minimal data
-  const order = {
-    id: orderId,
-    orderId: orderId,
-    orderNumber: orderId,
-    created: new Date().toISOString(),
-    status: 'processing',
-    items: items,
-    total: total,
-    ...orderData
-  };
+  order.subtotal = subtotal;
+  order.tax = tax;
+  order.shipping.cost = shippingCost;
+  order.total = subtotal + shippingCost + tax;
   
-  console.log('Checkout successful, created order:', { 
-    id: order.id,
-    itemCount: items.length,
-    total: total
+  // Create a payment intent in Stripe
+  let paymentData = null;
+  if (process.env.STRIPE_SECRET_KEY) {
+    try {
+      paymentData = await createPaymentIntent(order);
+      if (paymentData) {
+        // Add Stripe payment details to order
+        order.payment = order.payment || {};
+        order.payment.stripePaymentIntentId = paymentData.paymentIntentId;
+        order.payment.stripeClientSecret = paymentData.clientSecret;
+      }
+    } catch (error) {
+      console.error('Failed to create payment intent:', error);
+    }
+  }
+  
+  console.log('Successfully created order:', { 
+    id: order.id, 
+    total: order.total,
+    stripePaymentIntent: order.payment?.stripePaymentIntentId || 'Not created'
   });
   
-  // Extract customer email for confirmation
-  const customerEmail = orderData.customer?.email || 
-                       orderData.shipping?.email || 
-                       orderData.email || 
-                       orderData.user?.email;
-  
-  console.log('Customer email extracted for checkout:', customerEmail);
-  
-  // Clear the cart after successful checkout
+  // Clear the cart after checkout
   cartData.items = [];
   
-  // Send the response first to avoid timeout
-  res.status(201).json(order);
+  // Return order with payment intent details
+  res.json(order);
   
-  // Send confirmation email after response
-  try {
-    console.log('Calling email confirmation after checkout response sent');
-    const emailInfo = await sendOrderConfirmationEmail(order, customerEmail);
-    console.log('Checkout email confirmation completed, result:', !!emailInfo);
-  } catch (error) {
-    console.error('Error in checkout email confirmation process:', error);
+  // Extract customer email for confirmation
+  const customerEmail = order.customer?.email || 
+                       order.shipping?.email || 
+                       orderData.email;
+  
+  // Send confirmation email async after response
+  if (customerEmail) {
+    try {
+      console.log('Sending confirmation email to:', customerEmail);
+      sendOrderConfirmationEmail(order, customerEmail)
+        .then(info => console.log('Email sent:', !!info))
+        .catch(err => console.error('Email error:', err));
+    } catch (error) {
+      console.error('Error in email process:', error);
+    }
   }
-  
-  console.log('Checkout processing complete');
 });
 
 // Add a specialized endpoint for getting cart with product details
