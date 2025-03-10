@@ -777,59 +777,200 @@ async function seedProductsToMongoDB() {
     const count = await collection.countDocuments();
     console.log(`Found ${count} existing products in database`);
     
+    // Define required category products that must exist in the database
+    const requiredProducts = [
+      {
+        name: "Coffee Maker",
+        description: "Premium automatic coffee maker with timer and programmable settings.",
+        price: 79.99,
+        category: "Home & Kitchen",
+        inStock: true,
+        featured: false,
+        rating: 4.6,
+        reviews: 85,
+        image: "product1.jpg",
+        onSale: true,
+        originalPrice: "99.99",
+        tags: ["kitchen", "appliances", "sale"]
+      },
+      {
+        name: "Face Serum",
+        description: "Hydrating face serum with vitamin C and hyaluronic acid.",
+        price: 24.99,
+        category: "Beauty",
+        inStock: true,
+        featured: false,
+        rating: 4.9,
+        reviews: 120,
+        image: "product2.jpg",
+        tags: ["skincare", "beauty"]
+      },
+      {
+        name: "Wireless Earbuds",
+        description: "Noise-cancelling wireless earbuds with premium sound quality.",
+        price: 49.99,
+        category: "Electronics",
+        inStock: true,
+        featured: true,
+        rating: 4.7,
+        reviews: 215,
+        image: "product3.jpg",
+        onSale: true,
+        originalPrice: "69.99",
+        tags: ["electronics", "audio", "sale"]
+      },
+      {
+        name: "Winter Jacket",
+        description: "Warm winter jacket with waterproof outer layer and insulated lining.",
+        price: 79.99,
+        category: "Clothing",
+        inStock: true,
+        featured: false,
+        rating: 4.5,
+        reviews: 65,
+        image: "product4.jpg",
+        onSale: true,
+        originalPrice: "99.99",
+        tags: ["clothing", "winter", "sale"]
+      },
+      {
+        name: "Smart Speaker",
+        description: "Voice-controlled smart speaker with built-in assistant.",
+        price: 39.99,
+        category: "Electronics",
+        inStock: true,
+        featured: false,
+        rating: 4.4,
+        reviews: 178,
+        image: "product1.jpg",
+        isDeal: true,
+        tags: ["electronics", "smart home", "deal"]
+      },
+      {
+        name: "Kitchen Knife Set",
+        description: "Professional-grade kitchen knife set with wooden block.",
+        price: 69.99,
+        category: "Home & Kitchen",
+        inStock: true,
+        featured: false,
+        rating: 4.8,
+        reviews: 92,
+        image: "product2.jpg",
+        isDeal: true,
+        tags: ["kitchen", "cooking", "deal"]
+      }
+    ];
+    
+    // Check which required products exist in the database
+    const existingProductNames = await collection.distinct('name');
+    console.log('Existing product names:', existingProductNames);
+    
+    // Find products that don't exist yet
+    const productsToAdd = requiredProducts.filter(
+      product => !existingProductNames.includes(product.name)
+    );
+    
+    if (productsToAdd.length > 0) {
+      console.log(`Adding ${productsToAdd.length} required products to database...`);
+      
+      // Process the products to add proper image URLs and other fields
+      const processedProducts = productsToAdd.map(product => {
+        // Convert image filename to full URL if needed
+        const image = product.image.startsWith('http') 
+          ? product.image 
+          : `/public/sample-images/${product.image}`;
+        
+        return {
+          ...product,
+          imageUrl: image,
+          image: image,
+          slug: product.name.toLowerCase().replace(/\s+/g, '-')
+        };
+      });
+      
+      // Insert the new products
+      const result = await collection.insertMany(processedProducts);
+      console.log(`Added ${result.insertedCount} new products to database`);
+    } else {
+      console.log('All required products already exist in database');
+    }
+    
     if (count < 5) {
       console.log('Not enough products in database, seeding enhanced products...');
       
-      // Insert our enhanced products
-      const result = await collection.insertMany(enhancedMockProducts);
-      console.log(`Seeded ${result.insertedCount} products to database`);
+      // Insert our enhanced products that aren't already required
+      const enhancedProductsToAdd = enhancedMockProducts.filter(
+        product => !requiredProducts.some(req => req.name === product.name) && 
+                  !existingProductNames.includes(product.name)
+      );
       
-      await client.close();
-      return true;
-    } else {
-      console.log('Database already has products, updating with sale and deal tags...');
+      if (enhancedProductsToAdd.length > 0) {
+        const result = await collection.insertMany(enhancedProductsToAdd);
+        console.log(`Seeded ${result.insertedCount} additional enhanced products to database`);
+      }
+    }
+    
+    // Update existing products with sale and deal tags
+    const products = await collection.find().toArray();
+    
+    // Update products with sale and deal tags
+    const bulkUpdateOps = [];
+    
+    products.forEach((product, index) => {
+      const updateDoc = { $set: {} };
+      let needsUpdate = false;
       
-      // Get all products
-      const products = await collection.find().toArray();
-      
-      // Update products with sale and deal tags
-      const bulkUpdateOps = [];
-      
-      products.forEach((product, index) => {
-        const updateDoc = { $set: {} };
-        
+      // Check if the product already exists in our required list and already has tags
+      const requiredProduct = requiredProducts.find(req => req.name === product.name);
+      if (requiredProduct) {
+        // Use the tags from requiredProducts
+        if (requiredProduct.onSale && !product.onSale) {
+          updateDoc.$set.onSale = true;
+          updateDoc.$set.originalPrice = requiredProduct.originalPrice;
+          needsUpdate = true;
+        }
+        if (requiredProduct.isDeal && !product.isDeal) {
+          updateDoc.$set.isDeal = true;
+          needsUpdate = true;
+        }
+        if (requiredProduct.tags && (!product.tags || product.tags.length === 0)) {
+          updateDoc.$set.tags = requiredProduct.tags;
+          needsUpdate = true;
+        }
+      } else {
+        // For other products, use the rotation rule
         // Mark every third product as on sale
-        if (index % 3 === 0) {
+        if (index % 3 === 0 && !product.onSale) {
           updateDoc.$set.onSale = true;
           updateDoc.$set.originalPrice = (product.price * 1.25).toFixed(2);
-          updateDoc.$set.tags = [...(product.tags || []), 'sale'];
+          needsUpdate = true;
         }
         
         // Mark every fourth product as a deal
-        if (index % 4 === 0) {
+        if (index % 4 === 0 && !product.isDeal) {
           updateDoc.$set.isDeal = true;
-          updateDoc.$set.tags = [...(product.tags || []), 'deal'];
+          needsUpdate = true;
         }
-        
-        // Only add to bulk ops if we have fields to update
-        if (Object.keys(updateDoc.$set).length > 0) {
-          bulkUpdateOps.push({
-            updateOne: {
-              filter: { _id: product._id },
-              update: updateDoc
-            }
-          });
-        }
-      });
-      
-      if (bulkUpdateOps.length > 0) {
-        const updateResult = await collection.bulkWrite(bulkUpdateOps);
-        console.log(`Updated ${updateResult.modifiedCount} products with sale and deal tags`);
       }
       
-      await client.close();
-      return true;
+      // Only add to bulk ops if we have fields to update
+      if (needsUpdate) {
+        bulkUpdateOps.push({
+          updateOne: {
+            filter: { _id: product._id },
+            update: updateDoc
+          }
+        });
+      }
+    });
+    
+    if (bulkUpdateOps.length > 0) {
+      const updateResult = await collection.bulkWrite(bulkUpdateOps);
+      console.log(`Updated ${updateResult.modifiedCount} products with sale and deal tags`);
     }
+    
+    await client.close();
+    return true;
   } catch (error) {
     console.error('Error seeding products:', error);
     return false;
@@ -2339,6 +2480,26 @@ app.get('/api/sample-images', (req, res) => {
   } catch (error) {
     console.error('Error listing sample images:', error);
     res.status(500).json({ error: 'Failed to list sample images' });
+  }
+});
+
+// Add an admin endpoint to force reseed products
+app.get('/api/admin/reseed-products', async (req, res) => {
+  console.log('Admin request to reseed products');
+  
+  try {
+    const success = await seedProductsToMongoDB();
+    
+    if (success) {
+      console.log('Product reseeding completed successfully');
+      res.json({ success: true, message: 'Products reseeded successfully' });
+    } else {
+      console.log('Product reseeding failed');
+      res.status(500).json({ success: false, message: 'Failed to reseed products' });
+    }
+  } catch (error) {
+    console.error('Error in reseed products endpoint:', error);
+    res.status(500).json({ success: false, message: 'Error reseeding products', error: error.message });
   }
 });
 
