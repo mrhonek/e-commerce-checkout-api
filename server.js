@@ -1303,72 +1303,67 @@ app.post('/api/checkout', async (req, res) => {
   }
 });
 
-// Add a specialized endpoint for getting cart with product details
-app.get('/api/cart/with-products', async (req, res) => {
-  console.log('GET /api/cart/with-products');
+// Add a Stripe test endpoint to trigger a test event
+app.get('/api/stripe/test', async (req, res) => {
+  console.log('Stripe test endpoint called');
   
-  // Calculate totals but don't store them on the cart object
-  const totals = updateCartTotals();
-  
-  // Array to hold cart items with product details
-  const cartItemsWithProducts = [];
-  
-  // Try to get product details for each cart item
-  try {
-    const client = await connectToMongo();
-    
-    if (client) {
-      const db = client.db();
-      
-      // For each cart item, try to get product details
-      for (const item of cart.items) {
-        let product = null;
-        
-        // Try to find the product in the database
-        if (item.productId.match(/^[0-9a-fA-F]{24}$/)) {
-          product = await db.collection('products').findOne({ _id: new ObjectId(item.productId) });
-        }
-        
-        if (product) {
-          // Add product details to cart item
-          cartItemsWithProducts.push({
-            ...item,
-            product: {
-              _id: product._id.toString(),
-              name: product.name,
-              price: product.price,
-              imageUrl: product.images && product.images.length > 0 ? product.images[0] : 
-                      product.image || product.imageUrl || ''
-            }
-          });
-        } else {
-          // If product not found, just use the cart item as is
-          cartItemsWithProducts.push(item);
-        }
-      }
-      
-      await client.close();
-    } else {
-      // If no MongoDB connection, just use cart items as is
-      cartItemsWithProducts.push(...cart.items);
-    }
-  } catch (error) {
-    console.error('Error getting product details for cart:', error);
-    // In case of error, just use cart items as is
-    cartItemsWithProducts.push(...cart.items);
+  if (process.env.NODE_ENV === 'production' && process.env.ALLOW_TEST_ENDPOINTS !== 'true') {
+    return res.status(403).json({ error: 'Test endpoint not available in production' });
   }
   
-  // Return a specialized response with all the details
-  res.status(200).json({
-    items: cartItemsWithProducts,
-    total: totals.total || 0,
-    subtotal: totals.subtotal || 0,
-    totalItems: totals.totalItems || 0
-  });
+  try {
+    if (!process.env.STRIPE_SECRET_KEY) {
+      return res.status(500).json({ 
+        error: 'Missing Stripe API key',
+        stripeConfigured: false,
+        message: 'Please set the STRIPE_SECRET_KEY environment variable in Railway'
+      });
+    }
+    
+    console.log('Creating a test payment intent');
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: 1999,
+      currency: 'usd',
+      metadata: {
+        orderId: 'test-order-' + Date.now()
+      }
+    });
+    
+    console.log('Test payment intent created:', paymentIntent.id);
+    
+    res.json({ 
+      success: true,
+      message: 'Test payment intent created successfully',
+      clientSecret: paymentIntent.client_secret,
+      paymentIntentId: paymentIntent.id,
+      amount: '$19.99',
+      stripeConfigured: true,
+      stripeApiKeyConfigured: !!process.env.STRIPE_SECRET_KEY,
+      stripeWebhookSecretConfigured: !!process.env.STRIPE_WEBHOOK_SECRET,
+      checkStripeAccount: 'Check your Stripe dashboard to see this payment intent'
+    });
+  } catch (err) {
+    console.error('Error creating test payment intent:', err);
+    res.status(500).json({ 
+      error: err.message,
+      stripeConfigured: false,
+      possibleIssue: 'Your Stripe API key might be invalid or expired'
+    });
+  }
 });
 
 // Generic catch-all endpoint for debugging
-app.all('/api/*', (req, res) => {
+app.all('/api/*', (req, res, next) => {
+  // Skip known endpoints
+  const knownPaths = [
+    '/api/stripe/test',
+    '/api/webhook/stripe'
+  ];
+  
+  if (knownPaths.some(path => req.path.startsWith(path))) {
+    return next();
+  }
+  
   console.log(`UNHANDLED ${req.method} ${req.url}`);
   console.log('Headers:', req.headers);
   console.log('Body:', req.body);
@@ -1600,33 +1595,6 @@ app.post('/api/webhook/stripe', async (req, res) => {
   } catch (err) {
     console.error('Webhook error:', err.message);
     res.status(500).send(`Webhook Error: ${err.message}`);
-  }
-});
-
-// Add a Stripe test endpoint to trigger a test event
-app.get('/api/stripe/test', async (req, res) => {
-  if (process.env.NODE_ENV === 'production') {
-    return res.status(403).json({ error: 'Test endpoint not available in production' });
-  }
-  
-  try {
-    console.log('Creating a test payment intent');
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: 1999,
-      currency: 'usd',
-      metadata: {
-        orderId: 'test-order-' + Date.now()
-      }
-    });
-    
-    res.json({ 
-      message: 'Test payment intent created',
-      clientSecret: paymentIntent.client_secret,
-      paymentIntentId: paymentIntent.id
-    });
-  } catch (err) {
-    console.error('Error creating test payment intent:', err);
-    res.status(500).json({ error: err.message });
   }
 });
 
