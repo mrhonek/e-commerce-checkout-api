@@ -405,19 +405,19 @@ app.get('/api/products/:id', async (req, res) => {
   }
 });
 
-// Complete replacement of the cart API with basic array structure
-// This is a targeted approach just to make the current frontend work
+// Reset the cart to use a consistent object structure with items array
+const cartData = {
+  items: []
+};
 
-// Reset the cart to use a simple array
-let cartItems = [];
-
-// Simple GET /api/cart - returns just the array of items
+// Simple GET /api/cart - returns object with items array
 app.get('/api/cart', (req, res) => {
-  console.log('GET /api/cart returning raw array:', cartItems);
-  res.json(cartItems);
+  console.log('GET /api/cart returning:', { items: cartData.items });
+  // Return a consistent structure that frontend can map over
+  res.json({ items: cartData.items });
 });
 
-// Basic add to cart - returns only the array
+// Basic add to cart - returns object with items array
 app.post('/api/cart/items', async (req, res) => {
   console.log('POST /api/cart/items with body:', req.body);
   try {
@@ -467,12 +467,12 @@ app.post('/api/cart/items', async (req, res) => {
     };
     
     // Add to cart
-    cartItems.push(newItem);
+    cartData.items.push(newItem);
     
-    console.log('Updated cartItems array:', cartItems);
+    console.log('Updated cart:', { items: cartData.items });
     
-    // Return just the array
-    return res.json(cartItems);
+    // Return consistent { items: [] } structure
+    return res.json({ items: cartData.items });
   } catch (error) {
     console.error('Error adding to cart:', error);
     return res.status(500).json({ error: 'Failed to add item to cart' });
@@ -485,10 +485,10 @@ app.delete('/api/cart/items/:itemId', (req, res) => {
   console.log(`DELETE /api/cart/items/${itemId}`);
   
   // Filter out the item
-  cartItems = cartItems.filter(item => item.id !== itemId);
+  cartData.items = cartData.items.filter(item => item.id !== itemId);
   
-  // Return the updated array
-  return res.json(cartItems);
+  // Return consistent { items: [] } structure
+  return res.json({ items: cartData.items });
 });
 
 // Add other non-cart related endpoints here
@@ -618,6 +618,66 @@ app.all('/api/*', (req, res) => {
     query: req.query,
     params: req.params
   });
+});
+
+// Echo API to help debug frontend requests
+app.all('/api/echo', (req, res) => {
+  console.log('=== ECHO API CALL ===');
+  console.log('Method:', req.method);
+  console.log('URL:', req.url);
+  console.log('Body:', req.body);
+  console.log('Headers:', req.headers);
+  console.log('====================');
+  
+  // Return exactly what was received
+  res.json({
+    method: req.method,
+    url: req.url,
+    body: req.body,
+    headers: {
+      contentType: req.headers['content-type'],
+      accept: req.headers['accept']
+    }
+  });
+});
+
+// Expose cart in multiple formats to catch any frontend expectations
+app.get('/api/cart-debug', (req, res) => {
+  res.json({
+    // Format 1: Current format
+    standard: { items: cartData.items },
+    // Format 2: Just the array
+    array: cartData.items,
+    // Format 3: Empty for now
+    empty: { items: [] },
+    // Format 4: Null items array
+    withNull: { items: null },
+    // Format 5: No items property
+    withoutItems: {}
+  });
+});
+
+// Special cart endpoint that checks if frontend is sending proper data when adding items
+app.post('/api/add-to-cart-debug', (req, res) => {
+  console.log('=== ADD TO CART DEBUG ===');
+  console.log('Request body:', req.body);
+  
+  const productId = req.body.productId || req.body.product_id || req.body.id;
+  const quantity = req.body.quantity || 1;
+  
+  console.log('Extracted productId:', productId);
+  console.log('Extracted quantity:', quantity);
+  console.log('========================');
+  
+  if (!productId) {
+    return res.status(400).json({
+      error: 'No product ID found in request',
+      receivedBody: req.body
+    });
+  }
+  
+  // Return current cart as items property
+  return res.json({ items: cartData.items });
 });
 
 // Start the server
