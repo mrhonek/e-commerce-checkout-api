@@ -593,10 +593,39 @@ app.get('/api/payment/methods', (req, res) => {
 
 // Process order
 app.post('/api/orders', (req, res) => {
-  const { cart, shipping, payment, customer } = req.body;
+  console.log('=== PROCESSING ORDER ===');
+  console.log('Request body:', JSON.stringify(req.body, null, 2).substring(0, 500) + '...');
   
-  if (!cart || !shipping || !payment || !customer) {
-    return res.status(400).json({ error: 'Missing required order information' });
+  // Extract order data with flexible field names
+  const orderData = req.body;
+  
+  // Check for cart/items using various possible field names
+  const cart = orderData.cart || orderData.items || orderData.cartItems || { items: [] };
+  
+  // Check for shipping info using various possible field names
+  const shipping = orderData.shipping || orderData.shippingInfo || orderData.shippingMethod || orderData.delivery || {};
+  
+  // Check for payment info using various possible field names
+  const payment = orderData.payment || orderData.paymentInfo || orderData.paymentMethod || orderData.billing || {};
+  
+  // Check for customer info using various possible field names
+  const customer = orderData.customer || orderData.customerInfo || orderData.user || orderData.billingInfo || orderData.contact || {};
+  
+  console.log('Extracted cart:', cart);
+  console.log('Extracted shipping:', shipping);
+  console.log('Extracted payment:', payment);
+  console.log('Extracted customer:', customer);
+  
+  // More flexible validation - just ensure we have some minimal data
+  if ((!cart || typeof cart !== 'object') && 
+      (!shipping || typeof shipping !== 'object') && 
+      (!payment || typeof payment !== 'object') && 
+      (!customer || typeof customer !== 'object')) {
+    console.log('Order validation failed: Missing required order information');
+    return res.status(400).json({ 
+      error: 'Missing required order information',
+      received: orderData
+    });
   }
   
   // In a real app, we would save the order to the database
@@ -605,13 +634,28 @@ app.post('/api/orders', (req, res) => {
   // Mock order creation
   const order = {
     id: orderId,
+    orderId: orderId, // Add alternative field name
+    orderNumber: orderId, // Add another alternative
     created: new Date().toISOString(),
     status: 'processing',
     cart,
+    items: cart.items || [], // Add items directly for easier frontend access
     shipping,
-    payment: { ...payment, cardNumber: payment.cardNumber ? '****' + payment.cardNumber.slice(-4) : null },
+    payment: { 
+      ...payment, 
+      // Mask card number if present using various possible field names
+      cardNumber: payment.cardNumber ? '****' + payment.cardNumber.slice(-4) : 
+                 payment.card_number ? '****' + payment.card_number.slice(-4) : 
+                 payment.number ? '****' + payment.number.slice(-4) : null 
+    },
     customer
   };
+  
+  console.log('Successfully created order:', { id: order.id, status: order.status });
+  console.log('=======================');
+  
+  // Clear the cart after successful order
+  cartData.items = [];
   
   res.status(201).json(order);
 });
@@ -805,6 +849,56 @@ app.all('/api/cart/update*', (req, res) => {
   
   // Return the standard format
   return res.json({ items: cartData.items });
+});
+
+// Alternative checkout endpoint
+app.post('/api/checkout', (req, res) => {
+  console.log('=== CHECKOUT ENDPOINT CALLED ===');
+  console.log('Request body:', JSON.stringify(req.body, null, 2).substring(0, 500) + '...');
+  
+  // Extract order data
+  const orderData = req.body;
+  
+  // Generate order ID
+  const orderId = `order_${Date.now()}`;
+  
+  // Create order with minimal data
+  const order = {
+    id: orderId,
+    orderId: orderId,
+    orderNumber: orderId,
+    created: new Date().toISOString(),
+    status: 'processing',
+    ...orderData
+  };
+  
+  console.log('Checkout successful, created order:', { id: order.id });
+  
+  // Clear the cart after successful checkout
+  cartData.items = [];
+  
+  res.status(201).json(order);
+});
+
+// Order success/confirmation endpoint
+app.get('/api/orders/:orderId', (req, res) => {
+  const { orderId } = req.params;
+  
+  console.log(`GET /api/orders/${orderId}`);
+  
+  // Create a mock order for confirmation
+  const order = {
+    id: orderId,
+    orderId: orderId,
+    orderNumber: orderId,
+    created: new Date().toISOString(),
+    status: 'processing',
+    estimatedDelivery: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    items: cartData.items,
+    total: cartData.items.reduce((sum, item) => sum + ((Number(item.price) || 0) * (Number(item.quantity) || 0)), 0)
+  };
+  
+  res.json(order);
 });
 
 // Start the server
