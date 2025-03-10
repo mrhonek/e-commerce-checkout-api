@@ -893,6 +893,7 @@ async function seedProductsToMongoDB() {
         
         return {
           ...product,
+          _id: new ObjectId(), // Generate a proper MongoDB ObjectId
           imageUrl: image,
           image: image,
           slug: product.name.toLowerCase().replace(/\s+/g, '-')
@@ -1462,15 +1463,30 @@ app.get('/api/products/:id', async (req, res) => {
       if (!product) {
         console.log(`Looking for product with string ID: ${id}`);
         product = await db.collection('products').findOne({ _id: id });
+        
+        // Also try with a numeric conversion of the ID
+        if (!product && !isNaN(parseInt(id))) {
+          console.log(`Looking for product with numeric ID: ${parseInt(id)}`);
+          product = await db.collection('products').findOne({ _id: parseInt(id) });
+        }
       }
       
-      // 3. Try by product slug if not found by ID
+      // 3. If not found, try a more flexible ObjectId search - check if any _id ends with this id
+      if (!product && id.length < 24) {
+        console.log(`Looking for product with ObjectId ending with: ${id}`);
+        const allProducts = await db.collection('products').find({}).toArray();
+        product = allProducts.find(p => 
+          p._id && p._id.toString && p._id.toString().endsWith(id)
+        );
+      }
+      
+      // 4. Try by product slug if not found by ID
       if (!product) {
         console.log(`Looking for product with slug: ${id}`);
         product = await db.collection('products').findOne({ slug: id });
       }
       
-      // 4. Try by name (case-insensitive)
+      // 5. Try by name (case-insensitive)
       if (!product) {
         console.log(`Looking for product with name: ${id}`);
         product = await db.collection('products').findOne({ 
