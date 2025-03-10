@@ -388,66 +388,139 @@ app.get('/api/products/:id', async (req, res) => {
 });
 
 // In-memory cart storage (temporary until we implement MongoDB cart)
-const cart = { items: [] };
+// Ensure cart has the correct structure from the beginning
+const cart = { 
+  items: [],
+  total: 0,
+  subtotal: 0,
+  totalItems: 0
+};
+
+// Calculate cart totals
+function updateCartTotals() {
+  cart.totalItems = cart.items.reduce((sum, item) => sum + (item.quantity || 0), 0);
+  cart.subtotal = cart.items.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 0)), 0);
+  cart.total = cart.subtotal; // Can add shipping/tax later
+}
 
 // Get cart
 app.get('/api/cart', (req, res) => {
-  // Ensure all cart items have valid prices
-  const validatedCart = {
-    items: cart.items.map(item => ({
-      ...item,
-      price: typeof item.price === 'number' ? item.price : 0,
-      quantity: typeof item.quantity === 'number' ? item.quantity : 1
-    }))
-  };
+  // Ensure all cart items have valid prices and quantities
+  cart.items = cart.items.map(item => ({
+    ...item,
+    price: typeof item.price === 'number' ? item.price : 0,
+    quantity: typeof item.quantity === 'number' ? item.quantity : 1
+  }));
   
-  res.json(validatedCart);
+  // Update totals
+  updateCartTotals();
+  
+  // Log cart structure for debugging
+  console.log('Sending cart:', JSON.stringify(cart));
+  
+  // Always return a valid cart structure
+  res.json({
+    items: cart.items || [],
+    total: cart.total || 0,
+    subtotal: cart.subtotal || 0,
+    totalItems: cart.totalItems || 0
+  });
 });
 
 // Add item to cart
-app.post('/api/cart/items', (req, res) => {
+app.post('/api/cart/items', async (req, res) => {
+  console.log('POST /api/cart/items', req.body);
   const { productId, quantity = 1 } = req.body;
   
   if (!productId) {
     return res.status(400).json({ error: 'Product ID is required' });
   }
   
-  // Generate a unique item ID
-  const itemId = `item_${Date.now()}`;
-  
-  // Attempt to get product details to include price
-  let productPrice = 0;
-  let productName = '';
-  let productImage = '';
-  
-  // Find matching mock product for demo
-  const mockProducts = [
-    { id: 'prod1', name: 'Office Chair', price: 249.99, imageUrl: 'https://via.placeholder.com/400x300/3498db/ffffff?text=Office+Chair' },
-    { id: 'prod2', name: 'Headphones', price: 199.99, imageUrl: 'https://via.placeholder.com/400x300/e74c3c/ffffff?text=Headphones' },
-    { id: 'prod3', name: 'Laptop Stand', price: 79.99, imageUrl: 'https://via.placeholder.com/400x300/2ecc71/ffffff?text=Laptop+Stand' }
-  ];
-  
-  const matchingProduct = mockProducts.find(p => p.id === productId);
-  if (matchingProduct) {
-    productPrice = matchingProduct.price;
-    productName = matchingProduct.name;
-    productImage = matchingProduct.imageUrl;
+  try {
+    // Generate a unique item ID
+    const itemId = `item_${Date.now()}`;
+    
+    // Try to get actual product details from database
+    let productDetails = null;
+    let productPrice = 0;
+    let productName = '';
+    let productImage = '';
+    
+    // First try MongoDB
+    const client = await connectToMongo();
+    if (client) {
+      const db = client.db();
+      let product;
+      
+      // Check if ID is a valid MongoDB ObjectId
+      if (productId.match(/^[0-9a-fA-F]{24}$/)) {
+        product = await db.collection('products').findOne({ _id: new ObjectId(productId) });
+      } else {
+        // Try by slug
+        product = await db.collection('products').findOne({ slug: productId });
+      }
+      
+      await client.close();
+      
+      if (product) {
+        productDetails = product;
+        productPrice = typeof product.price === 'number' ? product.price : 
+                    typeof product.price === 'string' ? parseFloat(product.price) : 0;
+        productName = product.name || '';
+        productImage = product.images && product.images.length > 0 ? product.images[0] : 
+                     product.image || product.imageUrl || '';
+      }
+    }
+    
+    // If no product found in MongoDB, try mock data
+    if (!productDetails) {
+      // Find matching mock product for demo
+      const mockProducts = [
+        { id: 'prod1', name: 'Office Chair', price: 249.99, imageUrl: 'https://via.placeholder.com/400x300/3498db/ffffff?text=Office+Chair' },
+        { id: 'prod2', name: 'Headphones', price: 199.99, imageUrl: 'https://via.placeholder.com/400x300/e74c3c/ffffff?text=Headphones' },
+        { id: 'prod3', name: 'Laptop Stand', price: 79.99, imageUrl: 'https://via.placeholder.com/400x300/2ecc71/ffffff?text=Laptop+Stand' }
+      ];
+      
+      const matchingProduct = mockProducts.find(p => p.id === productId);
+      if (matchingProduct) {
+        productPrice = matchingProduct.price;
+        productName = matchingProduct.name;
+        productImage = matchingProduct.imageUrl;
+      }
+    }
+    
+    // Create cart item with price and product details
+    const cartItem = {
+      itemId,
+      productId,
+      quantity: Number(quantity),
+      price: productPrice,
+      name: productName,
+      imageUrl: productImage
+    };
+    
+    console.log('Adding item to cart:', JSON.stringify(cartItem));
+    
+    // Add to cart
+    cart.items.push(cartItem);
+    
+    // Update totals
+    updateCartTotals();
+    
+    // Respond with the updated cart
+    res.status(201).json({
+      item: cartItem,
+      cart: {
+        items: cart.items || [],
+        total: cart.total || 0,
+        subtotal: cart.subtotal || 0,
+        totalItems: cart.totalItems || 0
+      }
+    });
+  } catch (error) {
+    console.error('Error adding item to cart:', error);
+    res.status(500).json({ error: 'Failed to add item to cart' });
   }
-  
-  // Create cart item with price
-  const cartItem = {
-    itemId,
-    productId,
-    quantity: Number(quantity),
-    price: productPrice,
-    name: productName,
-    imageUrl: productImage
-  };
-  
-  console.log('Adding item to cart:', cartItem);
-  
-  cart.items.push(cartItem);
-  res.status(201).json(cartItem);
 });
 
 // Remove item from cart
@@ -461,7 +534,19 @@ app.delete('/api/cart/items/:itemId', (req, res) => {
     return res.status(404).json({ error: 'Item not found in cart' });
   }
   
-  res.status(200).json({ message: 'Item removed from cart' });
+  // Update totals
+  updateCartTotals();
+  
+  // Return updated cart
+  res.status(200).json({
+    message: 'Item removed from cart',
+    cart: {
+      items: cart.items || [],
+      total: cart.total || 0,
+      subtotal: cart.subtotal || 0,
+      totalItems: cart.totalItems || 0
+    }
+  });
 });
 
 // Shipping options
