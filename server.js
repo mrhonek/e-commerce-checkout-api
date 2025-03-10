@@ -8,23 +8,25 @@ const util = require('util');
 const app = express();
 const port = process.env.PORT || 8080;
 
+// Store original console methods before overriding
+const originalConsoleLog = console.log;
+const originalConsoleError = console.error;
+
 // Enable more detailed console logging for debugging
 console.log = function() {
   const timestamp = new Date().toISOString();
   const args = Array.from(arguments);
-  const originalConsoleLog = console.info;
   originalConsoleLog.apply(console, [`[${timestamp}]`, ...args]);
 };
 
 console.error = function() {
   const timestamp = new Date().toISOString();
   const args = Array.from(arguments);
-  const originalConsoleError = console.error;
   originalConsoleError.apply(console, [`[${timestamp}] ERROR:`, ...args]);
 };
 
 // Debug output
-console.log('=== E-COMMERCE CHECKOUT API ===');
+console.log('=== RHNKSHOP CHECKOUT API ===');
 console.log('Node version:', process.version);
 console.log('Environment:', process.env.NODE_ENV || 'development');
 console.log('Port:', port);
