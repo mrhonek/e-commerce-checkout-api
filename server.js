@@ -997,6 +997,17 @@ app.post('/api/orders', async (req, res) => {
     cart = { items };
   }
   
+  // Ensure each item has a consistent SKU format
+  items = items.map(item => {
+    const sku = item.sku || item.id || `item_${Date.now()}`;
+    // Ensure SKU is consistently formatted
+    const formattedSku = sku.startsWith('item_') ? sku : `item_${sku}`;
+    return {
+      ...item,
+      sku: formattedSku
+    };
+  });
+  
   // Check for shipping info using various possible field names
   const shipping = orderData.shipping || orderData.shippingInfo || orderData.shippingMethod || orderData.delivery || {};
   
@@ -1028,13 +1039,36 @@ app.post('/api/orders', async (req, res) => {
   
   // Calculate order total
   let total = 0;
+  let subtotal = 0;
+  let tax = 0;
+  let shippingCost = 0;
+  
+  // Get shipping cost - either from the order data or use a default of $5.99
+  shippingCost = orderData.shipping?.cost || orderData.shippingCost || 5.99;
+  
+  // Calculate subtotal from items
   if (items && items.length > 0) {
-    total = items.reduce((sum, item) => {
+    subtotal = items.reduce((sum, item) => {
       const price = item.price || item.unitPrice || item.product?.price || 0;
       const quantity = item.quantity || 1;
       return sum + (price * quantity);
     }, 0);
+  } else if (orderData.subtotal) {
+    subtotal = Number(orderData.subtotal);
   }
+  
+  // Calculate tax (default to 8% of subtotal)
+  tax = orderData.tax || orderData.taxAmount || Number((subtotal * 0.08).toFixed(2));
+  
+  // Calculate final total
+  total = subtotal + shippingCost + tax;
+  
+  console.log('Order components:', {
+    subtotal,
+    shipping: shippingCost,
+    tax,
+    total
+  });
   
   // Mock order creation
   const order = {
@@ -1045,8 +1079,13 @@ app.post('/api/orders', async (req, res) => {
     status: 'processing',
     cart,
     items: items, // Add items directly for easier frontend access
+    subtotal: subtotal,
+    shipping: {
+      ...shipping,
+      cost: shippingCost
+    },
+    tax: tax,
     total: total, // Include calculated total
-    shipping,
     payment: { 
       ...payment, 
       // Mask card number if present using various possible field names
