@@ -60,7 +60,21 @@ async function setupEmailTransporter() {
     const port = process.env.EMAIL_PORT || process.env.SMTP_PORT || 587;
     const user = process.env.EMAIL_USER || process.env.SMTP_USER;
     const pass = process.env.EMAIL_PASS || process.env.SMTP_PASSWORD;
-    const from = process.env.EMAIL_FROM || 'shop@example.com';
+    
+    // Get the from email address - check both variables
+    // If EMAIL_FROM is set, use it regardless of format
+    // If not, construct a from address using the user email but with a proper name
+    let from = process.env.EMAIL_FROM;
+    
+    if (!from && user) {
+      // If EMAIL_FROM is not set but we have a user email, format it properly
+      from = `"RhnkShop" <${user}>`;
+    } else if (!from) {
+      // Fallback if nothing is set
+      from = '"RhnkShop" <shop@example.com>';
+    }
+    
+    console.log('Using from email address:', from);
     
     // If we have real email credentials in environment variables, use those
     if (host && user && pass) {
@@ -320,7 +334,24 @@ async function sendOrderConfirmationEmail(order, customerEmail) {
     const formattedOrderId = orderId.startsWith('ORD-') ? orderId : `ORD-${orderId}`;
     
     // Use configured from email if available
-    const fromEmail = process.env.EMAIL_FROM || process.env.SMTP_FROM || '"RhnkShop" <shop@example.com>';
+    // Prioritize EMAIL_FROM over automatically formatted addresses
+    let fromEmail = process.env.EMAIL_FROM;
+    
+    if (!fromEmail) {
+      // If EMAIL_FROM not set, try SMTP_FROM
+      fromEmail = process.env.SMTP_FROM;
+      
+      // If neither is set, use the authenticated user with proper format
+      if (!fromEmail && (process.env.EMAIL_USER || process.env.SMTP_USER)) {
+        const user = process.env.EMAIL_USER || process.env.SMTP_USER;
+        fromEmail = `"RhnkShop" <${user}>`;
+      } else if (!fromEmail) {
+        // Fallback if nothing is set
+        fromEmail = '"RhnkShop" <shop@example.com>';
+      }
+    }
+    
+    console.log('Using from email for order confirmation:', fromEmail);
     
     // Create email content
     const mailOptions = {
