@@ -2,6 +2,7 @@
 const express = require('express');
 const cors = require('cors');
 const { MongoClient, ObjectId } = require('mongodb');
+const nodemailer = require('nodemailer');
 
 const app = express();
 const port = process.env.PORT || 8080;
@@ -14,15 +15,158 @@ console.log('Port:', port);
 console.log('MongoDB URI exists:', !!process.env.MONGODB_URI);
 console.log('Current directory:', __dirname);
 
-try {
-  console.log('Files in directory:');
-  require('fs').readdirSync(__dirname).forEach(file => {
-    console.log(' - ' + file);
-  });
-} catch (err) {
-  console.error('Error listing files:', err);
+// Configure email transporter
+// For development, we'll use Ethereal (fake SMTP service)
+let emailTransporter;
+
+// Setup email transporter
+async function setupEmailTransporter() {
+  try {
+    // If we have real email credentials in environment variables, use those
+    if (process.env.EMAIL_HOST && process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+      console.log('Setting up email with real credentials');
+      emailTransporter = nodemailer.createTransport({
+        host: process.env.EMAIL_HOST,
+        port: process.env.EMAIL_PORT || 587,
+        secure: process.env.EMAIL_SECURE === 'true',
+        auth: {
+          user: process.env.EMAIL_USER,
+          pass: process.env.EMAIL_PASS
+        }
+      });
+      console.log('Real email transporter configured');
+    } else {
+      // For development/testing, create a test account with Ethereal
+      console.log('Setting up test email account with Ethereal');
+      const testAccount = await nodemailer.createTestAccount();
+      
+      emailTransporter = nodemailer.createTransport({
+        host: 'smtp.ethereal.email',
+        port: 587,
+        secure: false,
+        auth: {
+          user: testAccount.user,
+          pass: testAccount.pass
+        }
+      });
+      
+      console.log('Test email account created:', {
+        user: testAccount.user,
+        url: 'https://ethereal.email'
+      });
+      console.log('You can view test emails at https://ethereal.email using the credentials above');
+    }
+  } catch (error) {
+    console.error('Failed to set up email transporter:', error);
+  }
 }
-console.log('===============================');
+
+// Call the setup function
+setupEmailTransporter();
+
+// Function to send order confirmation email
+async function sendOrderConfirmationEmail(order, customerEmail) {
+  if (!emailTransporter) {
+    console.log('Email transporter not configured, skipping email confirmation');
+    return;
+  }
+  
+  try {
+    // Extract customer email from order data
+    const email = customerEmail || 
+                 order.customer?.email || 
+                 order.shipping?.email || 
+                 order.billing?.email || 
+                 'customer@example.com';
+    
+    console.log(`Sending order confirmation to ${email}`);
+    
+    // Format items for email
+    const itemsList = order.items && order.items.length > 0 
+      ? order.items.map(item => `
+        <tr>
+          <td style="padding: 10px; border-bottom: 1px solid #eee;">${item.name || 'Product'}</td>
+          <td style="padding: 10px; border-bottom: 1px solid #eee;">${item.quantity || 1}</td>
+          <td style="padding: 10px; border-bottom: 1px solid #eee;">$${(item.price || 0).toFixed(2)}</td>
+          <td style="padding: 10px; border-bottom: 1px solid #eee;">$${((item.price || 0) * (item.quantity || 1)).toFixed(2)}</td>
+        </tr>
+      `).join('') 
+      : '<tr><td colspan="4" style="padding: 10px;">No items in order</td></tr>';
+    
+    // Calculate total
+    const total = order.total || 
+                 (order.items && order.items.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 1)), 0)) || 
+                 0;
+    
+    // Create email content
+    const mailOptions = {
+      from: '"E-Commerce Shop" <shop@example.com>',
+      to: email,
+      subject: `Order Confirmation #${order.id || order.orderId || 'Unknown'}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h1 style="color: #333; text-align: center; padding: 20px 0; border-bottom: 2px solid #eee;">Order Confirmation</h1>
+          
+          <div style="padding: 20px;">
+            <p>Dear Customer,</p>
+            <p>Thank you for your order! We're pleased to confirm that we've received your order and it's being processed.</p>
+            
+            <div style="background-color: #f8f8f8; padding: 15px; margin: 20px 0; border-radius: 5px;">
+              <h2 style="margin-top: 0; color: #333;">Order Summary</h2>
+              <p><strong>Order Number:</strong> ${order.id || order.orderId || 'Unknown'}</p>
+              <p><strong>Order Date:</strong> ${new Date().toLocaleDateString()}</p>
+              <p><strong>Order Status:</strong> ${order.status || 'Processing'}</p>
+            </div>
+            
+            <h3 style="color: #333;">Items Ordered</h3>
+            <table style="width: 100%; border-collapse: collapse;">
+              <thead>
+                <tr style="background-color: #f8f8f8;">
+                  <th style="padding: 10px; text-align: left; border-bottom: 2px solid #eee;">Product</th>
+                  <th style="padding: 10px; text-align: left; border-bottom: 2px solid #eee;">Quantity</th>
+                  <th style="padding: 10px; text-align: left; border-bottom: 2px solid #eee;">Price</th>
+                  <th style="padding: 10px; text-align: left; border-bottom: 2px solid #eee;">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${itemsList}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td colspan="3" style="padding: 10px; text-align: right; font-weight: bold;">Order Total:</td>
+                  <td style="padding: 10px; font-weight: bold;">$${total.toFixed(2)}</td>
+                </tr>
+              </tfoot>
+            </table>
+            
+            <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
+              <p>If you have any questions about your order, please contact our customer service team.</p>
+              <p>Thank you for shopping with us!</p>
+            </div>
+          </div>
+          
+          <div style="background-color: #333; color: white; padding: 15px; text-align: center; margin-top: 20px;">
+            <p style="margin: 0;">&copy; ${new Date().getFullYear()} E-Commerce Shop. All rights reserved.</p>
+          </div>
+        </div>
+      `
+    };
+    
+    // Send the email
+    const info = await emailTransporter.sendMail(mailOptions);
+    
+    console.log('Order confirmation email sent:', info.messageId);
+    
+    // If using Ethereal, log the URL where the email can be viewed
+    if (info.messageId && info.messageId.includes('ethereal')) {
+      console.log('Preview URL:', nodemailer.getTestMessageUrl(info));
+    }
+    
+    return info;
+  } catch (error) {
+    console.error('Failed to send order confirmation email:', error);
+  }
+}
 
 // Request logger middleware - add before other middleware
 app.use((req, res, next) => {
@@ -591,7 +735,7 @@ app.get('/api/payment/methods', (req, res) => {
   res.json(paymentMethods);
 });
 
-// Process order
+// Process order - updated to send confirmation email
 app.post('/api/orders', (req, res) => {
   console.log('=== PROCESSING ORDER ===');
   console.log('Request body:', JSON.stringify(req.body, null, 2).substring(0, 500) + '...');
@@ -652,9 +796,69 @@ app.post('/api/orders', (req, res) => {
   };
   
   console.log('Successfully created order:', { id: order.id, status: order.status });
+  
+  // Extract customer email for confirmation
+  const customerEmail = customer.email || 
+                       shipping.email || 
+                       payment.email || 
+                       orderData.email;
+  
+  // Send confirmation email
+  sendOrderConfirmationEmail(order, customerEmail)
+    .then(info => {
+      console.log('Email confirmation sent or attempted');
+    })
+    .catch(error => {
+      console.error('Error sending confirmation email:', error);
+    });
+  
   console.log('=======================');
   
   // Clear the cart after successful order
+  cartData.items = [];
+  
+  res.status(201).json(order);
+});
+
+// Alternative checkout endpoint - also with email confirmation
+app.post('/api/checkout', (req, res) => {
+  console.log('=== CHECKOUT ENDPOINT CALLED ===');
+  console.log('Request body:', JSON.stringify(req.body, null, 2).substring(0, 500) + '...');
+  
+  // Extract order data
+  const orderData = req.body;
+  
+  // Generate order ID
+  const orderId = `order_${Date.now()}`;
+  
+  // Create order with minimal data
+  const order = {
+    id: orderId,
+    orderId: orderId,
+    orderNumber: orderId,
+    created: new Date().toISOString(),
+    status: 'processing',
+    ...orderData
+  };
+  
+  console.log('Checkout successful, created order:', { id: order.id });
+  
+  // Extract customer email for confirmation
+  const customerEmail = orderData.customer?.email || 
+                       orderData.shipping?.email || 
+                       orderData.email || 
+                       orderData.user?.email;
+  
+  // Send confirmation email
+  sendOrderConfirmationEmail(order, customerEmail)
+    .then(info => {
+      console.log('Email confirmation sent or attempted');
+    })
+    .catch(error => {
+      console.error('Error sending confirmation email:', error);
+    });
+  
+  // Clear the cart after successful checkout
   cartData.items = [];
   
   res.status(201).json(order);
@@ -849,35 +1053,6 @@ app.all('/api/cart/update*', (req, res) => {
   
   // Return the standard format
   return res.json({ items: cartData.items });
-});
-
-// Alternative checkout endpoint
-app.post('/api/checkout', (req, res) => {
-  console.log('=== CHECKOUT ENDPOINT CALLED ===');
-  console.log('Request body:', JSON.stringify(req.body, null, 2).substring(0, 500) + '...');
-  
-  // Extract order data
-  const orderData = req.body;
-  
-  // Generate order ID
-  const orderId = `order_${Date.now()}`;
-  
-  // Create order with minimal data
-  const order = {
-    id: orderId,
-    orderId: orderId,
-    orderNumber: orderId,
-    created: new Date().toISOString(),
-    status: 'processing',
-    ...orderData
-  };
-  
-  console.log('Checkout successful, created order:', { id: order.id });
-  
-  // Clear the cart after successful checkout
-  cartData.items = [];
-  
-  res.status(201).json(order);
 });
 
 // Order success/confirmation endpoint
