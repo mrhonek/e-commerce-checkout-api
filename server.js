@@ -429,7 +429,6 @@ app.use((req, res, next) => {
 
 // Middleware
 app.use(cors());
-app.use(express.json());
 
 // Additional CORS headers for better compatibility
 app.use((req, res, next) => {
@@ -442,8 +441,8 @@ app.use((req, res, next) => {
   next();
 });
 
-// Express middleware
-// You must call app.use(express.json()) before the webhook route
+// Express middleware for JSON parsing
+// This is the only express.json() middleware we should have
 app.use(express.json({
   // Use raw body for Stripe webhook verification
   verify: (req, res, buf) => {
