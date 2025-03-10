@@ -388,47 +388,30 @@ app.get('/api/products/:id', async (req, res) => {
 });
 
 // In-memory cart storage (temporary until we implement MongoDB cart)
-// Ensure cart has the correct structure from the beginning
+// Simplify cart structure as the frontend may have certain expectations
 const cart = { 
-  items: [],
-  total: 0,
-  subtotal: 0,
-  totalItems: 0
+  items: [] // Keep this simple
 };
 
-// Calculate cart totals
+// Simplified calculate cart totals
 function updateCartTotals() {
-  cart.totalItems = cart.items.reduce((sum, item) => sum + (item.quantity || 0), 0);
-  cart.subtotal = cart.items.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 0)), 0);
-  cart.total = cart.subtotal; // Can add shipping/tax later
+  // This function exists but we won't add the fields to the cart object
+  // as it seemed to cause issues with the frontend
+  const totalItems = cart.items.reduce((sum, item) => sum + (parseInt(item.quantity) || 0), 0);
+  const subtotal = cart.items.reduce((sum, item) => sum + (parseFloat(item.price) || 0) * (parseInt(item.quantity) || 0), 0);
+  
+  return { totalItems, subtotal, total: subtotal };
 }
 
-// Get cart
+// Simple get cart - most minimal approach
 app.get('/api/cart', (req, res) => {
-  // Ensure all cart items have valid prices and quantities
-  cart.items = cart.items.map(item => ({
-    ...item,
-    price: typeof item.price === 'number' ? item.price : 0,
-    quantity: typeof item.quantity === 'number' ? item.quantity : 1
-  }));
-  
-  // Update totals
-  updateCartTotals();
-  
-  // Log cart structure for debugging
-  console.log('Sending cart:', JSON.stringify(cart));
-  
-  // Always return a valid cart structure
-  res.json({
-    items: cart.items || [],
-    total: cart.total || 0,
-    subtotal: cart.subtotal || 0,
-    totalItems: cart.totalItems || 0
-  });
+  console.log('GET /api/cart, items:', cart.items.length);
+  // Just return the items array
+  res.json({ items: cart.items });
 });
 
-// Add item to cart
-app.post('/api/cart/items', async (req, res) => {
+// Add item to cart - simplest approach
+app.post('/api/cart/items', (req, res) => {
   console.log('POST /api/cart/items', req.body);
   const { productId, quantity = 1 } = req.body;
   
@@ -436,96 +419,29 @@ app.post('/api/cart/items', async (req, res) => {
     return res.status(400).json({ error: 'Product ID is required' });
   }
   
-  try {
-    // Generate a unique item ID
-    const itemId = `item_${Date.now()}`;
-    
-    // Try to get actual product details from database
-    let productDetails = null;
-    let productPrice = 0;
-    let productName = '';
-    let productImage = '';
-    
-    // First try MongoDB
-    const client = await connectToMongo();
-    if (client) {
-      const db = client.db();
-      let product;
-      
-      // Check if ID is a valid MongoDB ObjectId
-      if (productId.match(/^[0-9a-fA-F]{24}$/)) {
-        product = await db.collection('products').findOne({ _id: new ObjectId(productId) });
-      } else {
-        // Try by slug
-        product = await db.collection('products').findOne({ slug: productId });
-      }
-      
-      await client.close();
-      
-      if (product) {
-        productDetails = product;
-        productPrice = typeof product.price === 'number' ? product.price : 
-                    typeof product.price === 'string' ? parseFloat(product.price) : 0;
-        productName = product.name || '';
-        productImage = product.images && product.images.length > 0 ? product.images[0] : 
-                     product.image || product.imageUrl || '';
-      }
-    }
-    
-    // If no product found in MongoDB, try mock data
-    if (!productDetails) {
-      // Find matching mock product for demo
-      const mockProducts = [
-        { id: 'prod1', name: 'Office Chair', price: 249.99, imageUrl: 'https://via.placeholder.com/400x300/3498db/ffffff?text=Office+Chair' },
-        { id: 'prod2', name: 'Headphones', price: 199.99, imageUrl: 'https://via.placeholder.com/400x300/e74c3c/ffffff?text=Headphones' },
-        { id: 'prod3', name: 'Laptop Stand', price: 79.99, imageUrl: 'https://via.placeholder.com/400x300/2ecc71/ffffff?text=Laptop+Stand' }
-      ];
-      
-      const matchingProduct = mockProducts.find(p => p.id === productId);
-      if (matchingProduct) {
-        productPrice = matchingProduct.price;
-        productName = matchingProduct.name;
-        productImage = matchingProduct.imageUrl;
-      }
-    }
-    
-    // Create cart item with price and product details
-    const cartItem = {
-      itemId,
-      productId,
-      quantity: Number(quantity),
-      price: productPrice,
-      name: productName,
-      imageUrl: productImage
-    };
-    
-    console.log('Adding item to cart:', JSON.stringify(cartItem));
-    
-    // Add to cart
-    cart.items.push(cartItem);
-    
-    // Update totals
-    updateCartTotals();
-    
-    // Respond with the updated cart
-    res.status(201).json({
-      item: cartItem,
-      cart: {
-        items: cart.items || [],
-        total: cart.total || 0,
-        subtotal: cart.subtotal || 0,
-        totalItems: cart.totalItems || 0
-      }
-    });
-  } catch (error) {
-    console.error('Error adding item to cart:', error);
-    res.status(500).json({ error: 'Failed to add item to cart' });
-  }
+  // Generate a unique item ID
+  const itemId = `item_${Date.now()}`;
+  
+  // Create bare minimum cart item
+  const cartItem = {
+    itemId,
+    productId,
+    quantity: Number(quantity)
+  };
+  
+  console.log('Adding item to cart:', cartItem);
+  
+  // Add to cart
+  cart.items.push(cartItem);
+  
+  // Simple success response
+  res.status(200).json({ success: true });
 });
 
-// Remove item from cart
+// Remove item from cart - simplest approach
 app.delete('/api/cart/items/:itemId', (req, res) => {
   const { itemId } = req.params;
+  console.log(`DELETE /api/cart/items/${itemId}`);
   
   const initialLength = cart.items.length;
   cart.items = cart.items.filter(item => item.itemId !== itemId);
@@ -534,19 +450,8 @@ app.delete('/api/cart/items/:itemId', (req, res) => {
     return res.status(404).json({ error: 'Item not found in cart' });
   }
   
-  // Update totals
-  updateCartTotals();
-  
-  // Return updated cart
-  res.status(200).json({
-    message: 'Item removed from cart',
-    cart: {
-      items: cart.items || [],
-      total: cart.total || 0,
-      subtotal: cart.subtotal || 0,
-      totalItems: cart.totalItems || 0
-    }
-  });
+  // Simple success response
+  res.status(200).json({ success: true });
 });
 
 // Shipping options
@@ -593,6 +498,70 @@ app.post('/api/orders', (req, res) => {
   };
   
   res.status(201).json(order);
+});
+
+// Add a specialized endpoint for getting cart with product details
+app.get('/api/cart/with-products', async (req, res) => {
+  console.log('GET /api/cart/with-products');
+  
+  // Calculate totals but don't store them on the cart object
+  const totals = updateCartTotals();
+  
+  // Array to hold cart items with product details
+  const cartItemsWithProducts = [];
+  
+  // Try to get product details for each cart item
+  try {
+    const client = await connectToMongo();
+    
+    if (client) {
+      const db = client.db();
+      
+      // For each cart item, try to get product details
+      for (const item of cart.items) {
+        let product = null;
+        
+        // Try to find the product in the database
+        if (item.productId.match(/^[0-9a-fA-F]{24}$/)) {
+          product = await db.collection('products').findOne({ _id: new ObjectId(item.productId) });
+        }
+        
+        if (product) {
+          // Add product details to cart item
+          cartItemsWithProducts.push({
+            ...item,
+            product: {
+              _id: product._id.toString(),
+              name: product.name,
+              price: product.price,
+              imageUrl: product.images && product.images.length > 0 ? product.images[0] : 
+                      product.image || product.imageUrl || ''
+            }
+          });
+        } else {
+          // If product not found, just use the cart item as is
+          cartItemsWithProducts.push(item);
+        }
+      }
+      
+      await client.close();
+    } else {
+      // If no MongoDB connection, just use cart items as is
+      cartItemsWithProducts.push(...cart.items);
+    }
+  } catch (error) {
+    console.error('Error getting product details for cart:', error);
+    // In case of error, just use cart items as is
+    cartItemsWithProducts.push(...cart.items);
+  }
+  
+  // Return a specialized response with all the details
+  res.status(200).json({
+    items: cartItemsWithProducts,
+    total: totals.total || 0,
+    subtotal: totals.subtotal || 0,
+    totalItems: totals.totalItems || 0
+  });
 });
 
 // Start the server
