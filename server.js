@@ -183,7 +183,7 @@ async function sendOrderConfirmationEmail(order, customerEmail) {
     
     console.log(`Found ${orderItems.length} items for email`);
     if (orderItems.length > 0) {
-      console.log('Sample item:', orderItems[0]);
+      console.log('Sample item:', JSON.stringify(orderItems[0]));
     }
     
     // Format items for email
@@ -194,10 +194,14 @@ async function sendOrderConfirmationEmail(order, customerEmail) {
           const quantity = item.quantity || 1;
           const price = item.price || item.unitPrice || item.product?.price || 0;
           const totalPrice = price * quantity;
+          const sku = item.sku || item.id || item._id || item.productId || '';
           
           return `
             <tr>
-              <td style="padding: 10px; border-bottom: 1px solid #eee;">${name}</td>
+              <td style="padding: 10px; border-bottom: 1px solid #eee;">
+                <div><strong>${name}</strong></div>
+                <div style="color: #777; font-size: 12px;">SKU: ${sku}</div>
+              </td>
               <td style="padding: 10px; border-bottom: 1px solid #eee;">${quantity}</td>
               <td style="padding: 10px; border-bottom: 1px solid #eee;">$${Number(price).toFixed(2)}</td>
               <td style="padding: 10px; border-bottom: 1px solid #eee;">$${Number(totalPrice).toFixed(2)}</td>
@@ -206,7 +210,38 @@ async function sendOrderConfirmationEmail(order, customerEmail) {
         }).join('') 
       : '<tr><td colspan="4" style="padding: 10px;">No items in order</td></tr>';
     
-    // Calculate total from items if not provided in order
+    // Calculate subtotal from items if not provided
+    let subtotal = 0;
+    if (order.subtotal) {
+      subtotal = Number(order.subtotal);
+    } else {
+      // Calculate subtotal from items
+      subtotal = orderItems.reduce((sum, item) => {
+        const price = item.price || item.unitPrice || item.product?.price || 0;
+        const quantity = item.quantity || 1;
+        return sum + (price * quantity);
+      }, 0);
+    }
+    
+    // Get shipping cost
+    let shipping = 0;
+    if (order.shipping && order.shipping.cost) {
+      shipping = Number(order.shipping.cost);
+    } else if (order.shippingCost) {
+      shipping = Number(order.shippingCost);
+    } else if (order.shipping && typeof order.shipping === 'number') {
+      shipping = Number(order.shipping);
+    }
+    
+    // Get tax amount
+    let tax = 0;
+    if (order.tax) {
+      tax = Number(order.tax);
+    } else if (order.taxAmount) {
+      tax = Number(order.taxAmount);
+    }
+    
+    // Calculate total
     let orderTotal = 0;
     if (order.total) {
       orderTotal = Number(order.total);
@@ -215,12 +250,8 @@ async function sendOrderConfirmationEmail(order, customerEmail) {
     } else if (order.amount) {
       orderTotal = Number(order.amount);
     } else {
-      // Calculate total from items
-      orderTotal = orderItems.reduce((sum, item) => {
-        const price = item.price || item.unitPrice || item.product?.price || 0;
-        const quantity = item.quantity || 1;
-        return sum + (price * quantity);
-      }, 0);
+      // Calculate total from components
+      orderTotal = subtotal + shipping + tax;
     }
     
     // Get shipping address for the email
@@ -232,7 +263,7 @@ async function sendOrderConfirmationEmail(order, customerEmail) {
           <h3 style="color: #333;">Shipping Address</h3>
           <p>${addr.firstName || ''} ${addr.lastName || ''}</p>
           <p>${addr.address1 || addr.line1 || addr.street || ''}</p>
-          <p>${addr.address2 || addr.line2 || ''}</p>
+          ${addr.address2 || addr.line2 ? `<p>${addr.address2 || addr.line2 || ''}</p>` : ''}
           <p>${addr.city || ''}, ${addr.state || addr.province || ''} ${addr.postalCode || addr.zip || ''}</p>
           <p>${addr.country || ''}</p>
         </div>
@@ -244,7 +275,7 @@ async function sendOrderConfirmationEmail(order, customerEmail) {
           <h3 style="color: #333;">Shipping Address</h3>
           <p>${addr.firstName || ''} ${addr.lastName || ''}</p>
           <p>${addr.address1 || addr.line1 || addr.street || ''}</p>
-          <p>${addr.address2 || addr.line2 || ''}</p>
+          ${addr.address2 || addr.line2 ? `<p>${addr.address2 || addr.line2 || ''}</p>` : ''}
           <p>${addr.city || ''}, ${addr.state || addr.province || ''} ${addr.postalCode || addr.zip || ''}</p>
           <p>${addr.country || ''}</p>
         </div>
@@ -254,14 +285,34 @@ async function sendOrderConfirmationEmail(order, customerEmail) {
     // Get shipping method for the email
     let shippingMethod = '';
     if (order.shipping && order.shipping.method) {
+      const method = order.shipping.method;
+      const methodName = typeof method === 'string' ? method : method.name || 'Standard Shipping';
+      const estDelivery = method.estimatedDelivery || '5-7 business days';
+      
       shippingMethod = `
-        <p><strong>Shipping Method:</strong> ${order.shipping.method.name || order.shipping.method}</p>
+        <div style="margin-top: 20px;">
+          <h3 style="color: #333;">Shipping Method</h3>
+          <p>${methodName}</p>
+          <p style="color: #777;">Estimated delivery: ${estDelivery}</p>
+        </div>
       `;
     } else if (order.shippingMethod) {
+      const method = order.shippingMethod;
+      const methodName = typeof method === 'string' ? method : method.name || 'Standard Shipping';
+      const estDelivery = method.estimatedDelivery || '5-7 business days';
+      
       shippingMethod = `
-        <p><strong>Shipping Method:</strong> ${order.shippingMethod.name || order.shippingMethod}</p>
+        <div style="margin-top: 20px;">
+          <h3 style="color: #333;">Shipping Method</h3>
+          <p>${methodName}</p>
+          <p style="color: #777;">Estimated delivery: ${estDelivery}</p>
+        </div>
       `;
     }
+    
+    // Format the order ID to match the website display format
+    const orderId = order.id || order.orderId || order._id || '';
+    const formattedOrderId = orderId.startsWith('ORD-') ? orderId : `ORD-${orderId}`;
     
     // Use configured from email if available
     const fromEmail = process.env.EMAIL_FROM || process.env.SMTP_FROM || '"E-Commerce Shop" <shop@example.com>';
@@ -270,45 +321,49 @@ async function sendOrderConfirmationEmail(order, customerEmail) {
     const mailOptions = {
       from: fromEmail,
       to: email,
-      subject: `Order Confirmation #${order.id || order.orderId || 'Unknown'}`,
+      subject: `Order Confirmed! #${formattedOrderId}`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h1 style="color: #333; text-align: center; padding: 20px 0; border-bottom: 2px solid #eee;">Order Confirmation</h1>
+          <h1 style="color: #333; text-align: center; padding: 20px 0; border-bottom: 2px solid #eee;">Order Confirmed!</h1>
           
           <div style="padding: 20px;">
-            <p>Dear Customer,</p>
-            <p>Thank you for your order! We're pleased to confirm that we've received your order and it's being processed.</p>
+            <p>Thank you for your purchase. Your order has been received and is being processed.</p>
             
             <div style="background-color: #f8f8f8; padding: 15px; margin: 20px 0; border-radius: 5px;">
-              <h2 style="margin-top: 0; color: #333;">Order Summary</h2>
-              <p><strong>Order Number:</strong> ${order.id || order.orderId || 'Unknown'}</p>
-              <p><strong>Order Date:</strong> ${new Date().toLocaleDateString()}</p>
-              <p><strong>Order Status:</strong> ${order.status || 'Processing'}</p>
-              ${shippingMethod}
+              <h2 style="margin-top: 0; color: #333;">${formattedOrderId}</h2>
+              <p>Placed on ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
             </div>
             
-            <h3 style="color: #333;">Items Ordered</h3>
+            <h3 style="color: #333;">Items</h3>
             <table style="width: 100%; border-collapse: collapse;">
-              <thead>
-                <tr style="background-color: #f8f8f8;">
-                  <th style="padding: 10px; text-align: left; border-bottom: 2px solid #eee;">Product</th>
-                  <th style="padding: 10px; text-align: left; border-bottom: 2px solid #eee;">Quantity</th>
-                  <th style="padding: 10px; text-align: left; border-bottom: 2px solid #eee;">Price</th>
-                  <th style="padding: 10px; text-align: left; border-bottom: 2px solid #eee;">Total</th>
-                </tr>
-              </thead>
               <tbody>
                 ${itemsList}
               </tbody>
-              <tfoot>
-                <tr>
-                  <td colspan="3" style="padding: 10px; text-align: right; font-weight: bold;">Order Total:</td>
-                  <td style="padding: 10px; font-weight: bold;">$${orderTotal.toFixed(2)}</td>
-                </tr>
-              </tfoot>
             </table>
             
+            <div style="margin-top: 20px; border-top: 1px solid #eee; padding-top: 15px;">
+              <table style="width: 100%; border-collapse: collapse;">
+                <tr>
+                  <td style="padding: 5px; text-align: right; width: 80%;">Subtotal</td>
+                  <td style="padding: 5px; text-align: right; width: 20%;">$${subtotal.toFixed(2)}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 5px; text-align: right; width: 80%;">Shipping</td>
+                  <td style="padding: 5px; text-align: right; width: 20%;">$${shipping.toFixed(2)}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 5px; text-align: right; width: 80%;">Tax</td>
+                  <td style="padding: 5px; text-align: right; width: 20%;">$${tax.toFixed(2)}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 5px; text-align: right; font-weight: bold; width: 80%;">Total</td>
+                  <td style="padding: 5px; text-align: right; font-weight: bold; width: 20%;">$${orderTotal.toFixed(2)}</td>
+                </tr>
+              </table>
+            </div>
+            
             ${shippingAddress}
+            ${shippingMethod}
             
             <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
               <p>If you have any questions about your order, please contact our customer service team.</p>
@@ -344,7 +399,7 @@ async function sendOrderConfirmationEmail(order, customerEmail) {
     return info;
   } catch (error) {
     console.error('Failed to send order confirmation email:', error);
-    // Print full error stack for debugging
+    // Print full error details for debugging
     console.error('Full error details:', util.inspect(error, { depth: null }));
   }
 }
