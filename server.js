@@ -3,9 +3,25 @@ const express = require('express');
 const cors = require('cors');
 const { MongoClient, ObjectId } = require('mongodb');
 const nodemailer = require('nodemailer');
+const util = require('util');
 
 const app = express();
 const port = process.env.PORT || 8080;
+
+// Enable more detailed console logging for debugging
+console.log = function() {
+  const timestamp = new Date().toISOString();
+  const args = Array.from(arguments);
+  const originalConsoleLog = console.info;
+  originalConsoleLog.apply(console, [`[${timestamp}]`, ...args]);
+};
+
+console.error = function() {
+  const timestamp = new Date().toISOString();
+  const args = Array.from(arguments);
+  const originalConsoleError = console.error;
+  originalConsoleError.apply(console, [`[${timestamp}] ERROR:`, ...args]);
+};
 
 // Debug output
 console.log('=== E-COMMERCE CHECKOUT API ===');
@@ -13,31 +29,53 @@ console.log('Node version:', process.version);
 console.log('Environment:', process.env.NODE_ENV || 'development');
 console.log('Port:', port);
 console.log('MongoDB URI exists:', !!process.env.MONGODB_URI);
-console.log('Current directory:', __dirname);
+console.log('Email settings:', {
+  host: process.env.EMAIL_HOST ? 'Set' : 'Not set',
+  user: process.env.EMAIL_USER ? 'Set' : 'Not set',
+  pass: process.env.EMAIL_PASS ? 'Set' : 'Not set'
+});
 
 // Configure email transporter
 // For development, we'll use Ethereal (fake SMTP service)
-let emailTransporter;
+let emailTransporter = null;
+let emailSetupComplete = false;
+let emailSetupError = null;
 
 // Setup email transporter
 async function setupEmailTransporter() {
+  console.log('Starting email setup...');
+  
   try {
     // If we have real email credentials in environment variables, use those
     if (process.env.EMAIL_HOST && process.env.EMAIL_USER && process.env.EMAIL_PASS) {
       console.log('Setting up email with real credentials');
-      emailTransporter = nodemailer.createTransport({
+      const transport = {
         host: process.env.EMAIL_HOST,
         port: process.env.EMAIL_PORT || 587,
         secure: process.env.EMAIL_SECURE === 'true',
         auth: {
           user: process.env.EMAIL_USER,
           pass: process.env.EMAIL_PASS
-        }
-      });
-      console.log('Real email transporter configured');
+        },
+        // Add debug option for troubleshooting
+        debug: true
+      };
+      
+      console.log('Email transport config:', JSON.stringify({
+        host: transport.host,
+        port: transport.port,
+        secure: transport.secure,
+        auth: { user: transport.auth.user }
+      }));
+      
+      emailTransporter = nodemailer.createTransport(transport);
+      
+      // Verify the connection
+      await emailTransporter.verify();
+      console.log('Real email transporter configured and verified');
     } else {
       // For development/testing, create a test account with Ethereal
-      console.log('Setting up test email account with Ethereal');
+      console.log('No email credentials found in environment, setting up test account with Ethereal');
       const testAccount = await nodemailer.createTestAccount();
       
       emailTransporter = nodemailer.createTransport({
@@ -47,27 +85,61 @@ async function setupEmailTransporter() {
         auth: {
           user: testAccount.user,
           pass: testAccount.pass
-        }
+        },
+        // Add debug option for troubleshooting
+        debug: true
       });
       
-      console.log('Test email account created:', {
+      // Verify the connection
+      await emailTransporter.verify();
+      
+      console.log('Test email account created and verified:', {
         user: testAccount.user,
         url: 'https://ethereal.email'
       });
       console.log('You can view test emails at https://ethereal.email using the credentials above');
     }
+    
+    emailSetupComplete = true;
+    return emailTransporter;
   } catch (error) {
     console.error('Failed to set up email transporter:', error);
+    emailSetupError = error;
+    emailSetupComplete = true; // Consider it complete even though it failed
+    return null;
   }
 }
 
-// Call the setup function
-setupEmailTransporter();
+// Call the setup function and handle the promise
+const emailSetupPromise = setupEmailTransporter()
+  .then(transporter => {
+    console.log('Email setup completed successfully:', !!transporter);
+    return transporter;
+  })
+  .catch(error => {
+    console.error('Email setup failed with error:', error);
+    return null;
+  });
 
 // Function to send order confirmation email
 async function sendOrderConfirmationEmail(order, customerEmail) {
+  console.log('Attempting to send order confirmation email...');
+  
+  // If email setup is not complete, wait for it
+  if (!emailSetupComplete) {
+    console.log('Email setup not yet complete, waiting...');
+    try {
+      emailTransporter = await emailSetupPromise;
+    } catch (error) {
+      console.error('Error waiting for email setup:', error);
+    }
+  }
+  
   if (!emailTransporter) {
-    console.log('Email transporter not configured, skipping email confirmation');
+    console.error('Email transporter not configured, skipping email confirmation');
+    if (emailSetupError) {
+      console.error('Email setup error was:', emailSetupError);
+    }
     return;
   }
   
@@ -77,7 +149,7 @@ async function sendOrderConfirmationEmail(order, customerEmail) {
                  order.customer?.email || 
                  order.shipping?.email || 
                  order.billing?.email || 
-                 'customer@example.com';
+                 'test@example.com';
     
     console.log(`Sending order confirmation to ${email}`);
     
@@ -152,7 +224,14 @@ async function sendOrderConfirmationEmail(order, customerEmail) {
       `
     };
     
+    console.log('Prepared mail options:', { 
+      to: mailOptions.to, 
+      subject: mailOptions.subject,
+      hasHtml: !!mailOptions.html
+    });
+    
     // Send the email
+    console.log('Sending email now...');
     const info = await emailTransporter.sendMail(mailOptions);
     
     console.log('Order confirmation email sent:', info.messageId);
@@ -165,6 +244,8 @@ async function sendOrderConfirmationEmail(order, customerEmail) {
     return info;
   } catch (error) {
     console.error('Failed to send order confirmation email:', error);
+    // Print full error stack for debugging
+    console.error('Full error details:', util.inspect(error, { depth: null }));
   }
 }
 
@@ -735,8 +816,8 @@ app.get('/api/payment/methods', (req, res) => {
   res.json(paymentMethods);
 });
 
-// Process order - updated to send confirmation email
-app.post('/api/orders', (req, res) => {
+// Process order - updated to send confirmation email with better error handling
+app.post('/api/orders', async (req, res) => {
   console.log('=== PROCESSING ORDER ===');
   console.log('Request body:', JSON.stringify(req.body, null, 2).substring(0, 500) + '...');
   
@@ -803,25 +884,28 @@ app.post('/api/orders', (req, res) => {
                        payment.email || 
                        orderData.email;
   
-  // Send confirmation email
-  sendOrderConfirmationEmail(order, customerEmail)
-    .then(info => {
-      console.log('Email confirmation sent or attempted');
-    })
-    .catch(error => {
-      console.error('Error sending confirmation email:', error);
-    });
-  
-  console.log('=======================');
+  console.log('Customer email extracted:', customerEmail);
   
   // Clear the cart after successful order
   cartData.items = [];
   
+  // Send the response first to avoid timeout
   res.status(201).json(order);
+  
+  // Send confirmation email after response
+  try {
+    console.log('Calling email confirmation after response sent');
+    const emailInfo = await sendOrderConfirmationEmail(order, customerEmail);
+    console.log('Email confirmation completed, result:', !!emailInfo);
+  } catch (error) {
+    console.error('Error in email confirmation process:', error);
+  }
+  
+  console.log('Order processing complete');
 });
 
 // Alternative checkout endpoint - also with email confirmation
-app.post('/api/checkout', (req, res) => {
+app.post('/api/checkout', async (req, res) => {
   console.log('=== CHECKOUT ENDPOINT CALLED ===');
   console.log('Request body:', JSON.stringify(req.body, null, 2).substring(0, 500) + '...');
   
@@ -849,19 +933,24 @@ app.post('/api/checkout', (req, res) => {
                        orderData.email || 
                        orderData.user?.email;
   
-  // Send confirmation email
-  sendOrderConfirmationEmail(order, customerEmail)
-    .then(info => {
-      console.log('Email confirmation sent or attempted');
-    })
-    .catch(error => {
-      console.error('Error sending confirmation email:', error);
-    });
+  console.log('Customer email extracted for checkout:', customerEmail);
   
   // Clear the cart after successful checkout
   cartData.items = [];
   
+  // Send the response first to avoid timeout
   res.status(201).json(order);
+  
+  // Send confirmation email after response
+  try {
+    console.log('Calling email confirmation after checkout response sent');
+    const emailInfo = await sendOrderConfirmationEmail(order, customerEmail);
+    console.log('Checkout email confirmation completed, result:', !!emailInfo);
+  } catch (error) {
+    console.error('Error in checkout email confirmation process:', error);
+  }
+  
+  console.log('Checkout processing complete');
 });
 
 // Add a specialized endpoint for getting cart with product details
