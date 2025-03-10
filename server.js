@@ -742,28 +742,21 @@ const enhancedMockProducts = [
   }
 ];
 
-// Update a few products to be on sale or marked as deals
-enhancedMockProducts = enhancedMockProducts.map((product, index) => {
+// Instead of reassigning the array, update products in place
+// Mark some products as on sale or deals
+enhancedMockProducts.forEach((product, index) => {
   // Mark every third product as on sale
   if (index % 3 === 0) {
-    return {
-      ...product,
-      onSale: true,
-      originalPrice: (product.price * 1.25).toFixed(2),
-      tags: [...(product.tags || []), 'sale']
-    };
+    product.onSale = true;
+    product.originalPrice = (product.price * 1.25).toFixed(2);
+    product.tags = [...(product.tags || []), 'sale'];
   }
   
   // Mark every fourth product as a deal
   if (index % 4 === 0) {
-    return {
-      ...product,
-      isDeal: true,
-      tags: [...(product.tags || []), 'deal']
-    };
+    product.isDeal = true;
+    product.tags = [...(product.tags || []), 'deal'];
   }
-  
-  return product;
 });
 
 // Function to seed the database with products
