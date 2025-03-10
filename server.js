@@ -24,6 +24,24 @@ try {
 }
 console.log('===============================');
 
+// Request logger middleware - add before other middleware
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  console.log('Request body:', req.body);
+  console.log('Request query:', req.query);
+  console.log('Request params:', req.params);
+
+  // Capture the original res.json to log response
+  const originalJson = res.json;
+  res.json = function(body) {
+    console.log(`Response for ${req.method} ${req.url}:`, 
+                body ? JSON.stringify(body).substring(0, 200) + '...' : 'undefined');
+    return originalJson.call(this, body);
+  };
+  
+  next();
+});
+
 // Middleware
 app.use(cors());
 app.use(express.json());
@@ -387,71 +405,148 @@ app.get('/api/products/:id', async (req, res) => {
   }
 });
 
-// In-memory cart storage (temporary until we implement MongoDB cart)
-// Simplify cart structure as the frontend may have certain expectations
-const cart = { 
-  items: [] // Keep this simple
+// Enhanced cart implementation
+// This global cart variable will be used only in memory for this demo
+const globalCart = {
+  items: [],
+  subtotal: 0,
+  total: 0,
+  totalItems: 0
 };
 
-// Simplified calculate cart totals
-function updateCartTotals() {
-  // This function exists but we won't add the fields to the cart object
-  // as it seemed to cause issues with the frontend
-  const totalItems = cart.items.reduce((sum, item) => sum + (parseInt(item.quantity) || 0), 0);
-  const subtotal = cart.items.reduce((sum, item) => sum + (parseFloat(item.price) || 0) * (parseInt(item.quantity) || 0), 0);
-  
-  return { totalItems, subtotal, total: subtotal };
-}
+// Multiple cart API formats to cover different frontend expectations
 
-// Simple get cart - most minimal approach
+// Format 1: Simple array of items
 app.get('/api/cart', (req, res) => {
-  console.log('GET /api/cart, items:', cart.items.length);
-  // Just return the items array
-  res.json({ items: cart.items });
+  console.log('GET /api/cart - returning simplified cart');
+  res.json(globalCart.items);  // Just return the array directly
 });
 
-// Add item to cart - simplest approach
-app.post('/api/cart/items', (req, res) => {
+// Format 2: Object with items array
+app.get('/api/cart/object', (req, res) => {
+  console.log('GET /api/cart/object - returning cart object');
+  res.json({ 
+    items: globalCart.items,
+    subtotal: globalCart.subtotal,
+    total: globalCart.total,
+    totalItems: globalCart.totalItems
+  });
+});
+
+// Format 3: Different naming
+app.get('/api/cart/alt', (req, res) => {
+  console.log('GET /api/cart/alt - returning alternative cart format');
+  res.json({ 
+    cartItems: globalCart.items,
+    cartTotal: globalCart.total,
+    itemCount: globalCart.totalItems
+  });
+});
+
+// Add to cart with multiple response formats
+app.post('/api/cart/items', async (req, res) => {
   console.log('POST /api/cart/items', req.body);
-  const { productId, quantity = 1 } = req.body;
-  
-  if (!productId) {
-    return res.status(400).json({ error: 'Product ID is required' });
+  try {
+    const { productId, quantity = 1 } = req.body;
+    
+    if (!productId) {
+      return res.status(400).json({ error: 'Product ID is required' });
+    }
+    
+    // Generate a unique item ID
+    const itemId = `item_${Date.now()}`;
+    
+    // Get product details from database if possible
+    let productName = 'Product';
+    let productPrice = 0;
+    let productImage = '';
+    
+    const client = await connectToMongo();
+    if (client) {
+      const db = client.db();
+      
+      // Try to find product by ID
+      let product = null;
+      if (productId.match(/^[0-9a-fA-F]{24}$/)) {
+        product = await db.collection('products').findOne({ _id: new ObjectId(productId) });
+      }
+      
+      if (product) {
+        productName = product.name || 'Product';
+        productPrice = typeof product.price === 'number' ? product.price : 
+                     typeof product.price === 'string' ? parseFloat(product.price) : 0;
+        productImage = product.images && product.images.length > 0 ? product.images[0] : 
+                     product.image || product.imageUrl || '';
+        
+        console.log('Found product details:', { productName, productPrice, productImage });
+      }
+      
+      await client.close();
+    }
+    
+    // Create cart item
+    const newItem = {
+      id: itemId,
+      itemId, // Include both formats
+      productId,
+      quantity: Number(quantity),
+      name: productName,
+      price: productPrice,
+      imageUrl: productImage,
+      product: {
+        id: productId,
+        name: productName,
+        price: productPrice,
+        imageUrl: productImage
+      }
+    };
+    
+    // Add to global cart
+    globalCart.items.push(newItem);
+    
+    // Recalculate totals
+    globalCart.totalItems = globalCart.items.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
+    globalCart.subtotal = globalCart.items.reduce((sum, item) => sum + ((Number(item.price) || 0) * (Number(item.quantity) || 0)), 0);
+    globalCart.total = globalCart.subtotal;
+    
+    console.log('Updated cart:', { 
+      itemCount: globalCart.items.length, 
+      totalItems: globalCart.totalItems,
+      subtotal: globalCart.subtotal
+    });
+    
+    // Return success with multiple formats
+    return res.status(200).json({
+      success: true,
+      item: newItem,
+      cart: globalCart.items,
+      cartObject: {
+        items: globalCart.items,
+        subtotal: globalCart.subtotal,
+        total: globalCart.total,
+        totalItems: globalCart.totalItems
+      }
+    });
+  } catch (error) {
+    console.error('Error adding to cart:', error);
+    return res.status(500).json({ error: 'Failed to add item to cart', details: error.message });
   }
-  
-  // Generate a unique item ID
-  const itemId = `item_${Date.now()}`;
-  
-  // Create bare minimum cart item
-  const cartItem = {
-    itemId,
-    productId,
-    quantity: Number(quantity)
-  };
-  
-  console.log('Adding item to cart:', cartItem);
-  
-  // Add to cart
-  cart.items.push(cartItem);
-  
-  // Simple success response
-  res.status(200).json({ success: true });
 });
 
-// Remove item from cart - simplest approach
-app.delete('/api/cart/items/:itemId', (req, res) => {
-  const { itemId } = req.params;
-  console.log(`DELETE /api/cart/items/${itemId}`);
+// Generic catch-all endpoint for debugging
+app.all('/api/*', (req, res) => {
+  console.log(`UNHANDLED ${req.method} ${req.url}`);
+  console.log('Headers:', req.headers);
+  console.log('Body:', req.body);
+  console.log('Query:', req.query);
+  console.log('Params:', req.params);
   
-  const initialLength = cart.items.length;
-  cart.items = cart.items.filter(item => item.itemId !== itemId);
-  
-  if (cart.items.length === initialLength) {
-    return res.status(404).json({ error: 'Item not found in cart' });
-  }
-  
-  // Simple success response
-  res.status(200).json({ success: true });
+  res.status(200).json({
+    message: `Received ${req.method} request to ${req.url}`,
+    body: req.body,
+    query: req.query,
+    params: req.params
+  });
 });
 
 // Shipping options
