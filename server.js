@@ -893,7 +893,9 @@ app.get('/api/products', async (req, res) => {
       console.log('No MongoDB connection, using fallback data');
     }
   } catch (error) {
-    console.error('Error fetching products:', error.message);
+    console.error('Error fetching products:', error);
+    // Return an empty array instead of an error object
+    res.json([]);
   }
   
   // Fallback mock products (with price explicitly as number)
@@ -2179,7 +2181,8 @@ app.get('/api/products/category/:category', async (req, res) => {
     res.json(enhancedMockProducts);
   } catch (error) {
     console.error(`Error fetching products for category ${formattedCategory}:`, error);
-    res.status(500).json({ error: `Failed to fetch products for category ${formattedCategory}` });
+    // Even on error, return an empty array instead of an error object
+    res.json([]);
   }
 });
 
@@ -2265,7 +2268,8 @@ app.get('/api/products/sale', async (req, res) => {
     res.json(fakeSaleProducts);
   } catch (error) {
     console.error('Error fetching sale products:', error);
-    res.status(500).json({ error: 'Failed to fetch sale products' });
+    // Even on error, return an empty array instead of an error object
+    res.json([]);
   }
 });
 
@@ -2350,7 +2354,8 @@ app.get('/api/products/deals', async (req, res) => {
     res.json(fakeDealProducts);
   } catch (error) {
     console.error('Error fetching deal products:', error);
-    res.status(500).json({ error: 'Failed to fetch deal products' });
+    // Even on error, return an empty array instead of an error object
+    res.json([]);
   }
 });
 
