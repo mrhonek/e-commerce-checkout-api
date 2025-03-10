@@ -791,7 +791,8 @@ async function seedProductsToMongoDB() {
         image: "product1.jpg",
         onSale: true,
         originalPrice: "99.99",
-        tags: ["kitchen", "appliances", "sale"]
+        tags: ["kitchen", "appliances", "sale"],
+        sku: "HK-CM-001" // Add unique SKU
       },
       {
         name: "Face Serum",
@@ -803,7 +804,8 @@ async function seedProductsToMongoDB() {
         rating: 4.9,
         reviews: 120,
         image: "product2.jpg",
-        tags: ["skincare", "beauty"]
+        tags: ["skincare", "beauty"],
+        sku: "BTY-FS-002" // Add unique SKU
       },
       {
         name: "Wireless Earbuds",
@@ -817,7 +819,8 @@ async function seedProductsToMongoDB() {
         image: "product3.jpg",
         onSale: true,
         originalPrice: "69.99",
-        tags: ["electronics", "audio", "sale"]
+        tags: ["electronics", "audio", "sale"],
+        sku: "ELEC-WE-003" // Add unique SKU
       },
       {
         name: "Winter Jacket",
@@ -831,7 +834,8 @@ async function seedProductsToMongoDB() {
         image: "product4.jpg",
         onSale: true,
         originalPrice: "99.99",
-        tags: ["clothing", "winter", "sale"]
+        tags: ["clothing", "winter", "sale"],
+        sku: "CLO-WJ-004" // Add unique SKU
       },
       {
         name: "Smart Speaker",
@@ -844,7 +848,8 @@ async function seedProductsToMongoDB() {
         reviews: 178,
         image: "product1.jpg",
         isDeal: true,
-        tags: ["electronics", "smart home", "deal"]
+        tags: ["electronics", "smart home", "deal"],
+        sku: "ELEC-SS-005" // Add unique SKU
       },
       {
         name: "Kitchen Knife Set",
@@ -857,17 +862,23 @@ async function seedProductsToMongoDB() {
         reviews: 92,
         image: "product2.jpg",
         isDeal: true,
-        tags: ["kitchen", "cooking", "deal"]
+        tags: ["kitchen", "cooking", "deal"],
+        sku: "HK-KS-006" // Add unique SKU
       }
     ];
     
-    // Check which required products exist in the database
+    // Fix the async await issue
+    // We need to check for existing SKUs but we can't use await in a filter function directly
+    // Let's get all existing SKUs first and then check against that array
     const existingProductNames = await collection.distinct('name');
+    const existingSkus = await collection.distinct('sku');
     console.log('Existing product names:', existingProductNames);
+    console.log('Existing SKUs:', existingSkus);
     
-    // Find products that don't exist yet
+    // Find products that don't exist yet by checking name and SKU
     const productsToAdd = requiredProducts.filter(
-      product => !existingProductNames.includes(product.name)
+      product => !existingProductNames.includes(product.name) &&
+                 !existingSkus.includes(product.sku)
     );
     
     if (productsToAdd.length > 0) {
@@ -899,10 +910,20 @@ async function seedProductsToMongoDB() {
       console.log('Not enough products in database, seeding enhanced products...');
       
       // Insert our enhanced products that aren't already required
-      const enhancedProductsToAdd = enhancedMockProducts.filter(
-        product => !requiredProducts.some(req => req.name === product.name) && 
-                  !existingProductNames.includes(product.name)
-      );
+      const enhancedProductsToAdd = enhancedMockProducts
+        .filter(product => !requiredProducts.some(req => req.name === product.name) && 
+                          !existingProductNames.includes(product.name) &&
+                          (!product.sku || !existingSkus.includes(product.sku)))
+        .map((product, index) => {
+          // Add a SKU if it doesn't have one already
+          if (!product.sku) {
+            return {
+              ...product,
+              sku: `MOCK-${index + 100}` // Ensure unique SKUs with a high number offset
+            };
+          }
+          return product;
+        });
       
       if (enhancedProductsToAdd.length > 0) {
         const result = await collection.insertMany(enhancedProductsToAdd);
