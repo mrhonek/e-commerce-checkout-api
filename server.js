@@ -136,6 +136,7 @@ const emailSetupPromise = setupEmailTransporter()
 // Function to send order confirmation email
 async function sendOrderConfirmationEmail(order, customerEmail) {
   console.log('Attempting to send order confirmation email...');
+  console.log('Order data for email:', JSON.stringify(order, null, 2).substring(0, 500) + '...');
   
   // If email setup is not complete, wait for it
   if (!emailSetupComplete) {
@@ -165,22 +166,102 @@ async function sendOrderConfirmationEmail(order, customerEmail) {
     
     console.log(`Sending order confirmation to ${email}`);
     
+    // Extract items from the order, checking multiple possible locations
+    // This is important as different API endpoints might structure the data differently
+    let orderItems = [];
+    if (Array.isArray(order.items)) {
+      orderItems = order.items;
+    } else if (order.cart && Array.isArray(order.cart.items)) {
+      orderItems = order.cart.items;
+    } else if (Array.isArray(order.cart)) {
+      orderItems = order.cart;
+    } else if (order.products && Array.isArray(order.products)) {
+      orderItems = order.products;
+    } else if (order.orderItems && Array.isArray(order.orderItems)) {
+      orderItems = order.orderItems;
+    }
+    
+    console.log(`Found ${orderItems.length} items for email`);
+    if (orderItems.length > 0) {
+      console.log('Sample item:', orderItems[0]);
+    }
+    
     // Format items for email
-    const itemsList = order.items && order.items.length > 0 
-      ? order.items.map(item => `
-        <tr>
-          <td style="padding: 10px; border-bottom: 1px solid #eee;">${item.name || 'Product'}</td>
-          <td style="padding: 10px; border-bottom: 1px solid #eee;">${item.quantity || 1}</td>
-          <td style="padding: 10px; border-bottom: 1px solid #eee;">$${(item.price || 0).toFixed(2)}</td>
-          <td style="padding: 10px; border-bottom: 1px solid #eee;">$${((item.price || 0) * (item.quantity || 1)).toFixed(2)}</td>
-        </tr>
-      `).join('') 
+    const itemsList = orderItems.length > 0 
+      ? orderItems.map(item => {
+          // Extract item data, checking different possible property names
+          const name = item.name || item.productName || item.title || item.product?.name || 'Product';
+          const quantity = item.quantity || 1;
+          const price = item.price || item.unitPrice || item.product?.price || 0;
+          const totalPrice = price * quantity;
+          
+          return `
+            <tr>
+              <td style="padding: 10px; border-bottom: 1px solid #eee;">${name}</td>
+              <td style="padding: 10px; border-bottom: 1px solid #eee;">${quantity}</td>
+              <td style="padding: 10px; border-bottom: 1px solid #eee;">$${Number(price).toFixed(2)}</td>
+              <td style="padding: 10px; border-bottom: 1px solid #eee;">$${Number(totalPrice).toFixed(2)}</td>
+            </tr>
+          `;
+        }).join('') 
       : '<tr><td colspan="4" style="padding: 10px;">No items in order</td></tr>';
     
-    // Calculate total
-    const total = order.total || 
-                 (order.items && order.items.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 1)), 0)) || 
-                 0;
+    // Calculate total from items if not provided in order
+    let orderTotal = 0;
+    if (order.total) {
+      orderTotal = Number(order.total);
+    } else if (order.orderTotal) {
+      orderTotal = Number(order.orderTotal);
+    } else if (order.amount) {
+      orderTotal = Number(order.amount);
+    } else {
+      // Calculate total from items
+      orderTotal = orderItems.reduce((sum, item) => {
+        const price = item.price || item.unitPrice || item.product?.price || 0;
+        const quantity = item.quantity || 1;
+        return sum + (price * quantity);
+      }, 0);
+    }
+    
+    // Get shipping address for the email
+    let shippingAddress = '';
+    if (order.shipping && order.shipping.address) {
+      const addr = order.shipping.address;
+      shippingAddress = `
+        <div style="margin-top: 20px;">
+          <h3 style="color: #333;">Shipping Address</h3>
+          <p>${addr.firstName || ''} ${addr.lastName || ''}</p>
+          <p>${addr.address1 || addr.line1 || addr.street || ''}</p>
+          <p>${addr.address2 || addr.line2 || ''}</p>
+          <p>${addr.city || ''}, ${addr.state || addr.province || ''} ${addr.postalCode || addr.zip || ''}</p>
+          <p>${addr.country || ''}</p>
+        </div>
+      `;
+    } else if (order.shippingAddress) {
+      const addr = order.shippingAddress;
+      shippingAddress = `
+        <div style="margin-top: 20px;">
+          <h3 style="color: #333;">Shipping Address</h3>
+          <p>${addr.firstName || ''} ${addr.lastName || ''}</p>
+          <p>${addr.address1 || addr.line1 || addr.street || ''}</p>
+          <p>${addr.address2 || addr.line2 || ''}</p>
+          <p>${addr.city || ''}, ${addr.state || addr.province || ''} ${addr.postalCode || addr.zip || ''}</p>
+          <p>${addr.country || ''}</p>
+        </div>
+      `;
+    }
+    
+    // Get shipping method for the email
+    let shippingMethod = '';
+    if (order.shipping && order.shipping.method) {
+      shippingMethod = `
+        <p><strong>Shipping Method:</strong> ${order.shipping.method.name || order.shipping.method}</p>
+      `;
+    } else if (order.shippingMethod) {
+      shippingMethod = `
+        <p><strong>Shipping Method:</strong> ${order.shippingMethod.name || order.shippingMethod}</p>
+      `;
+    }
     
     // Use configured from email if available
     const fromEmail = process.env.EMAIL_FROM || process.env.SMTP_FROM || '"E-Commerce Shop" <shop@example.com>';
@@ -203,6 +284,7 @@ async function sendOrderConfirmationEmail(order, customerEmail) {
               <p><strong>Order Number:</strong> ${order.id || order.orderId || 'Unknown'}</p>
               <p><strong>Order Date:</strong> ${new Date().toLocaleDateString()}</p>
               <p><strong>Order Status:</strong> ${order.status || 'Processing'}</p>
+              ${shippingMethod}
             </div>
             
             <h3 style="color: #333;">Items Ordered</h3>
@@ -221,10 +303,12 @@ async function sendOrderConfirmationEmail(order, customerEmail) {
               <tfoot>
                 <tr>
                   <td colspan="3" style="padding: 10px; text-align: right; font-weight: bold;">Order Total:</td>
-                  <td style="padding: 10px; font-weight: bold;">$${total.toFixed(2)}</td>
+                  <td style="padding: 10px; font-weight: bold;">$${orderTotal.toFixed(2)}</td>
                 </tr>
               </tfoot>
             </table>
+            
+            ${shippingAddress}
             
             <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
               <p>If you have any questions about your order, please contact our customer service team.</p>
@@ -841,7 +925,22 @@ app.post('/api/orders', async (req, res) => {
   const orderData = req.body;
   
   // Check for cart/items using various possible field names
-  const cart = orderData.cart || orderData.items || orderData.cartItems || { items: [] };
+  let cart = orderData.cart || orderData.items || orderData.cartItems || { items: [] };
+  let items = [];
+  
+  // Handle different cart structures
+  if (Array.isArray(cart)) {
+    // Cart is already an array of items
+    items = cart;
+    cart = { items };
+  } else if (cart.items && Array.isArray(cart.items)) {
+    // Cart has items array
+    items = cart.items;
+  } else if (typeof cart === 'object') {
+    // Cart is an object but doesn't have items array
+    items = [cart];
+    cart = { items };
+  }
   
   // Check for shipping info using various possible field names
   const shipping = orderData.shipping || orderData.shippingInfo || orderData.shippingMethod || orderData.delivery || {};
@@ -872,6 +971,16 @@ app.post('/api/orders', async (req, res) => {
   // In a real app, we would save the order to the database
   const orderId = `order_${Date.now()}`;
   
+  // Calculate order total
+  let total = 0;
+  if (items && items.length > 0) {
+    total = items.reduce((sum, item) => {
+      const price = item.price || item.unitPrice || item.product?.price || 0;
+      const quantity = item.quantity || 1;
+      return sum + (price * quantity);
+    }, 0);
+  }
+  
   // Mock order creation
   const order = {
     id: orderId,
@@ -880,7 +989,8 @@ app.post('/api/orders', async (req, res) => {
     created: new Date().toISOString(),
     status: 'processing',
     cart,
-    items: cart.items || [], // Add items directly for easier frontend access
+    items: items, // Add items directly for easier frontend access
+    total: total, // Include calculated total
     shipping,
     payment: { 
       ...payment, 
@@ -892,7 +1002,12 @@ app.post('/api/orders', async (req, res) => {
     customer
   };
   
-  console.log('Successfully created order:', { id: order.id, status: order.status });
+  console.log('Successfully created order:', { 
+    id: order.id, 
+    status: order.status,
+    itemCount: items.length,
+    total: total
+  });
   
   // Extract customer email for confirmation
   const customerEmail = customer.email || 
@@ -928,6 +1043,30 @@ app.post('/api/checkout', async (req, res) => {
   // Extract order data
   const orderData = req.body;
   
+  // Extract items from various possible locations
+  let items = [];
+  if (Array.isArray(orderData.items)) {
+    items = orderData.items;
+  } else if (orderData.cart && Array.isArray(orderData.cart.items)) {
+    items = orderData.cart.items;
+  } else if (Array.isArray(orderData.cart)) {
+    items = orderData.cart;
+  } else if (orderData.products && Array.isArray(orderData.products)) {
+    items = orderData.products;
+  }
+  
+  // Calculate order total
+  let total = 0;
+  if (items && items.length > 0) {
+    total = items.reduce((sum, item) => {
+      const price = item.price || item.unitPrice || item.product?.price || 0;
+      const quantity = item.quantity || 1;
+      return sum + (price * quantity);
+    }, 0);
+  } else if (orderData.total) {
+    total = Number(orderData.total);
+  }
+  
   // Generate order ID
   const orderId = `order_${Date.now()}`;
   
@@ -938,10 +1077,16 @@ app.post('/api/checkout', async (req, res) => {
     orderNumber: orderId,
     created: new Date().toISOString(),
     status: 'processing',
+    items: items,
+    total: total,
     ...orderData
   };
   
-  console.log('Checkout successful, created order:', { id: order.id });
+  console.log('Checkout successful, created order:', { 
+    id: order.id,
+    itemCount: items.length,
+    total: total
+  });
   
   // Extract customer email for confirmation
   const customerEmail = orderData.customer?.email || 
