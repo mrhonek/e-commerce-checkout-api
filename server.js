@@ -584,6 +584,237 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Enhanced seed products with proper categories
+const enhancedMockProducts = [
+  // Home & Kitchen category items
+  { 
+    _id: "homekit1", 
+    name: "Coffee Maker", 
+    description: "Premium coffee maker with timer and auto-shutoff",
+    price: 79.99, 
+    category: "Home & Kitchen",
+    featured: true,
+    inStock: true,
+    rating: 4.7,
+    reviews: 128,
+    // Using our sample images
+    imageUrl: getImageUrl("product1.jpg")
+  },
+  { 
+    _id: "homekit2", 
+    name: "Blender", 
+    description: "High-power blender for smoothies and food prep",
+    price: 59.99, 
+    category: "Home & Kitchen",
+    featured: false,
+    inStock: true,
+    rating: 4.5,
+    reviews: 94,
+    imageUrl: getImageUrl("product2.jpg")
+  },
+  
+  // Beauty category items
+  { 
+    _id: "beauty1", 
+    name: "Face Serum", 
+    description: "Hydrating face serum with vitamin C",
+    price: 24.99, 
+    category: "Beauty",
+    featured: false,
+    inStock: true,
+    rating: 4.8,
+    reviews: 156,
+    imageUrl: getImageUrl("product3.jpg")
+  },
+  { 
+    _id: "beauty2", 
+    name: "Makeup Brush Set", 
+    description: "Professional makeup brush set with carrying case",
+    price: 34.99, 
+    category: "Beauty",
+    featured: true,
+    inStock: true,
+    rating: 4.6,
+    reviews: 87,
+    imageUrl: getImageUrl("product4.jpg")
+  },
+  
+  // Sale items
+  { 
+    _id: "sale1", 
+    name: "Wireless Earbuds", 
+    description: "Noise-cancelling wireless earbuds with charging case",
+    price: 49.99, 
+    originalPrice: 99.99,
+    category: "Electronics",
+    featured: false,
+    inStock: true,
+    onSale: true,
+    rating: 4.4,
+    reviews: 210,
+    tags: ["sale"],
+    imageUrl: getPlaceholderImage("Wireless Earbuds")
+  },
+  { 
+    _id: "sale2", 
+    name: "Winter Jacket", 
+    description: "Water-resistant winter jacket with thermal lining",
+    price: 79.99, 
+    originalPrice: 149.99,
+    category: "Clothing",
+    featured: false,
+    inStock: true,
+    onSale: true,
+    rating: 4.3,
+    reviews: 76,
+    tags: ["sale"],
+    imageUrl: getPlaceholderImage("Winter Jacket")
+  },
+  
+  // Deals items
+  { 
+    _id: "deal1", 
+    name: "Smart Speaker", 
+    description: "Voice-controlled smart speaker with virtual assistant",
+    price: 39.99, 
+    originalPrice: 59.99,
+    category: "Electronics",
+    featured: true,
+    inStock: true,
+    isDeal: true,
+    rating: 4.5,
+    reviews: 188,
+    tags: ["deal", "hot"],
+    imageUrl: getPlaceholderImage("Smart Speaker")
+  },
+  { 
+    _id: "deal2", 
+    name: "Kitchen Knife Set", 
+    description: "Professional chef knife set with wooden block",
+    price: 69.99, 
+    originalPrice: 99.99,
+    category: "Home & Kitchen",
+    featured: false,
+    inStock: true,
+    isDeal: true,
+    rating: 4.9,
+    reviews: 132,
+    tags: ["deal"],
+    imageUrl: getPlaceholderImage("Kitchen Knife Set")
+  },
+  
+  // Keep original items but update with categories
+  { 
+    _id: "prod1", 
+    name: "Office Chair", 
+    description: "Ergonomic office chair with lumbar support",
+    price: 249.99, 
+    category: "Furniture",
+    featured: true, 
+    inStock: true,
+    rating: 4.6,
+    reviews: 154,
+    imageUrl: getImageUrl("product1.jpg")
+  },
+  { 
+    _id: "prod2", 
+    name: "Headphones", 
+    description: "Over-ear headphones with noise cancellation",
+    price: 199.99, 
+    category: "Electronics",
+    featured: true, 
+    inStock: true,
+    rating: 4.8,
+    reviews: 203,
+    imageUrl: getImageUrl("product2.jpg")
+  },
+  { 
+    _id: "prod3", 
+    name: "Laptop Stand", 
+    description: "Adjustable laptop stand for better ergonomics",
+    price: 79.99, 
+    category: "Electronics",
+    featured: false, 
+    inStock: true,
+    rating: 4.5,
+    reviews: 88,
+    imageUrl: getImageUrl("product3.jpg")
+  }
+];
+
+// Update a few products to be on sale or marked as deals
+enhancedMockProducts = enhancedMockProducts.map((product, index) => {
+  // Mark every third product as on sale
+  if (index % 3 === 0) {
+    return {
+      ...product,
+      onSale: true,
+      originalPrice: (product.price * 1.25).toFixed(2),
+      tags: [...(product.tags || []), 'sale']
+    };
+  }
+  
+  // Mark every fourth product as a deal
+  if (index % 4 === 0) {
+    return {
+      ...product,
+      isDeal: true,
+      tags: [...(product.tags || []), 'deal']
+    };
+  }
+  
+  return product;
+});
+
+// Function to seed the database with products
+async function seedProductsToMongoDB() {
+  console.log('Attempting to seed products to MongoDB...');
+  
+  try {
+    const client = await connectToMongo();
+    if (!client) {
+      console.log('No MongoDB connection, skipping product seeding');
+      return false;
+    }
+    
+    const db = client.db();
+    const collection = db.collection('products');
+    
+    // Check if we already have products
+    const count = await collection.countDocuments();
+    console.log(`Found ${count} existing products in database`);
+    
+    if (count < 5) {
+      console.log('Not enough products in database, seeding enhanced products...');
+      
+      // Insert our enhanced products
+      const result = await collection.insertMany(enhancedMockProducts);
+      console.log(`Seeded ${result.insertedCount} products to database`);
+      
+      await client.close();
+      return true;
+    } else {
+      console.log('Database already has products, skipping seeding');
+      await client.close();
+      return false;
+    }
+  } catch (error) {
+    console.error('Error seeding products:', error);
+    return false;
+  }
+}
+
+// Call the seed function on startup
+seedProductsToMongoDB().then(seeded => {
+  if (seeded) {
+    console.log('Product seeding completed successfully');
+  } else {
+    console.log('Product seeding skipped or failed');
+  }
+}).catch(err => {
+  console.error('Product seeding error:', err);
+});
+
 // Get all products
 app.get('/api/products', async (req, res) => {
   console.log('GET /api/products');
@@ -1862,6 +2093,271 @@ app.get('/api/sample-images', (req, res) => {
   } catch (error) {
     console.error('Error listing sample images:', error);
     res.status(500).json({ error: 'Failed to list sample images' });
+  }
+});
+
+// Get products by category
+app.get('/api/products/category/:category', async (req, res) => {
+  const { category } = req.params;
+  console.log(`GET /api/products/category/${category}`);
+  
+  // Format category from URL params (e.g., "home-kitchen" -> "home & kitchen")
+  let formattedCategory = category.toLowerCase();
+  if (formattedCategory === 'home-kitchen') {
+    formattedCategory = 'home & kitchen';
+  }
+  
+  console.log(`Looking for products in category: ${formattedCategory}`);
+  
+  try {
+    const client = await connectToMongo();
+    
+    if (client) {
+      const db = client.db();
+      
+      // Create a case-insensitive search for the category
+      const products = await db.collection('products')
+        .find({ 
+          $or: [
+            { category: { $regex: new RegExp('^' + formattedCategory + '$', 'i') } },
+            { categories: { $regex: new RegExp(formattedCategory, 'i') } }
+          ]
+        })
+        .toArray();
+      
+      console.log(`Found ${products.length} products in category ${formattedCategory}`);
+      
+      // Use the same transformation logic for consistency
+      const transformedProducts = products.map(product => {
+        // Determine the proper image URL or provide a fallback
+        let mainImage = null;
+        
+        if (product.images && product.images.length > 0) {
+          mainImage = getImageUrl(product.images[0]);
+        } else if (product.image) {
+          mainImage = getImageUrl(product.image);
+        } else if (product.imageUrl) {
+          mainImage = getImageUrl(product.imageUrl);
+        } else {
+          mainImage = getPlaceholderImage(product.name);
+        }
+        
+        // Ensure the price is a valid number
+        const price = typeof product.price === 'number' ? product.price : 
+                     typeof product.price === 'string' ? parseFloat(product.price) : 
+                     99.99; // Default price if undefined or invalid
+        
+        return {
+          ...product,
+          _id: product._id.toString(),
+          image: mainImage,
+          imageUrl: mainImage,
+          thumbnailUrl: mainImage,
+          price: price,
+          inStock: product.inStock === undefined ? true : !!product.inStock,
+          featured: product.featured === undefined ? false : !!product.featured,
+          slug: product.slug || product.name.toLowerCase().replace(/\s+/g, '-')
+        };
+      });
+      
+      await client.close();
+      
+      if (transformedProducts.length > 0) {
+        return res.json(transformedProducts);
+      }
+    }
+    
+    // If we get here, either no MongoDB connection or no products found
+    console.log(`No products found in category ${formattedCategory}, checking enhanced mock products`);
+    
+    // Filter enhanced mock products by category
+    const filteredProducts = enhancedMockProducts.filter(product => {
+      const productCategory = product.category?.toLowerCase() || '';
+      return productCategory === formattedCategory;
+    });
+    
+    if (filteredProducts.length > 0) {
+      console.log(`Returning ${filteredProducts.length} filtered mock products`);
+      return res.json(filteredProducts);
+    }
+    
+    // Last resort - return all products if none in category
+    console.log('No products in this category, returning all mock products');
+    res.json(enhancedMockProducts);
+  } catch (error) {
+    console.error(`Error fetching products for category ${formattedCategory}:`, error);
+    res.status(500).json({ error: `Failed to fetch products for category ${formattedCategory}` });
+  }
+});
+
+// Get products on sale
+app.get('/api/products/sale', async (req, res) => {
+  console.log('GET /api/products/sale');
+  
+  try {
+    const client = await connectToMongo();
+    
+    if (client) {
+      const db = client.db();
+      // Find products that are marked as on sale or have sale-related flags
+      const products = await db.collection('products')
+        .find({ 
+          $or: [
+            { onSale: true },
+            { tags: 'sale' },
+            { tags: { $in: ['sale'] } },
+            { originalPrice: { $exists: true } }
+          ]
+        })
+        .toArray();
+      
+      console.log(`Found ${products.length} sale products in database`);
+      
+      // Transform as usual
+      const transformedProducts = products.map(product => {
+        let mainImage = null;
+        if (product.images && product.images.length > 0) {
+          mainImage = getImageUrl(product.images[0]);
+        } else if (product.image) {
+          mainImage = getImageUrl(product.image);
+        } else if (product.imageUrl) {
+          mainImage = getImageUrl(product.imageUrl);
+        } else {
+          mainImage = getPlaceholderImage(product.name);
+        }
+        
+        return {
+          ...product,
+          _id: product._id.toString(),
+          image: mainImage,
+          imageUrl: mainImage,
+          thumbnailUrl: mainImage,
+          price: typeof product.price === 'number' ? product.price : 
+                 typeof product.price === 'string' ? parseFloat(product.price) : 99.99,
+          inStock: product.inStock === undefined ? true : !!product.inStock,
+          featured: product.featured === undefined ? false : !!product.featured,
+          onSale: true, // Force this flag for consistency
+          slug: product.slug || product.name.toLowerCase().replace(/\s+/g, '-')
+        };
+      });
+      
+      await client.close();
+      
+      if (transformedProducts.length > 0) {
+        return res.json(transformedProducts);
+      }
+    }
+    
+    // Filter enhanced mock products for sale items
+    const saleProducts = enhancedMockProducts.filter(product => 
+      product.onSale || 
+      (product.tags && (product.tags.includes('sale'))) ||
+      product.originalPrice
+    );
+    
+    if (saleProducts.length > 0) {
+      console.log(`Returning ${saleProducts.length} mock sale products`);
+      return res.json(saleProducts);
+    }
+    
+    // If no sale products, return a subset of mock products "on sale"
+    const fakeSaleProducts = enhancedMockProducts.slice(0, 3).map(product => ({
+      ...product,
+      onSale: true,
+      originalPrice: (product.price * 1.5).toFixed(2),
+      tags: [...(product.tags || []), 'sale']
+    }));
+    
+    console.log('Returning fake sale products');
+    res.json(fakeSaleProducts);
+  } catch (error) {
+    console.error('Error fetching sale products:', error);
+    res.status(500).json({ error: 'Failed to fetch sale products' });
+  }
+});
+
+// Get deal products
+app.get('/api/products/deals', async (req, res) => {
+  console.log('GET /api/products/deals');
+  
+  try {
+    const client = await connectToMongo();
+    
+    if (client) {
+      const db = client.db();
+      // Find products that are marked as deals
+      const products = await db.collection('products')
+        .find({ 
+          $or: [
+            { isDeal: true },
+            { tags: 'deal' },
+            { tags: { $in: ['deal'] } }
+          ]
+        })
+        .toArray();
+      
+      console.log(`Found ${products.length} deal products in database`);
+      
+      // Transform as usual
+      const transformedProducts = products.map(product => {
+        let mainImage = null;
+        if (product.images && product.images.length > 0) {
+          mainImage = getImageUrl(product.images[0]);
+        } else if (product.image) {
+          mainImage = getImageUrl(product.image);
+        } else if (product.imageUrl) {
+          mainImage = getImageUrl(product.imageUrl);
+        } else {
+          mainImage = getPlaceholderImage(product.name);
+        }
+        
+        return {
+          ...product,
+          _id: product._id.toString(),
+          image: mainImage,
+          imageUrl: mainImage,
+          thumbnailUrl: mainImage,
+          price: typeof product.price === 'number' ? product.price : 
+                 typeof product.price === 'string' ? parseFloat(product.price) : 99.99,
+          inStock: product.inStock === undefined ? true : !!product.inStock,
+          featured: product.featured === undefined ? false : !!product.featured,
+          isDeal: true, // Force this flag for consistency
+          slug: product.slug || product.name.toLowerCase().replace(/\s+/g, '-')
+        };
+      });
+      
+      await client.close();
+      
+      if (transformedProducts.length > 0) {
+        return res.json(transformedProducts);
+      }
+    }
+    
+    // Filter enhanced mock products for deal items
+    const dealProducts = enhancedMockProducts.filter(product => 
+      product.isDeal || 
+      (product.tags && (product.tags.includes('deal')))
+    );
+    
+    if (dealProducts.length > 0) {
+      console.log(`Returning ${dealProducts.length} mock deal products`);
+      return res.json(dealProducts);
+    }
+    
+    // If no deal products, return a subset of mock products as "deals"
+    const fakeDealProducts = enhancedMockProducts.slice(0, 3).map(product => ({
+      ...product,
+      isDeal: true,
+      tags: [...(product.tags || []), 'deal'],
+      // Only add originalPrice if it doesn't exist
+      ...(product.originalPrice ? {} : { originalPrice: (product.price * 1.3).toFixed(2) })
+    }));
+    
+    console.log('Returning fake deal products');
+    res.json(fakeDealProducts);
+  } catch (error) {
+    console.error('Error fetching deal products:', error);
+    res.status(500).json({ error: 'Failed to fetch deal products' });
   }
 });
 
