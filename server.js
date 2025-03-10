@@ -85,12 +85,31 @@ app.get('/api/products', async (req, res) => {
       const products = await db.collection('products').find().toArray();
       console.log(`Found ${products.length} products in database`);
       
-      // Transform products for frontend compatibility
+      // Transform products for frontend compatibility with better image and stock handling
       const transformedProducts = products.map(product => ({
         ...product,
         _id: product._id.toString(),
-        imageUrl: product.images && product.images.length > 0 ? product.images[0] : undefined
+        // Ensure proper image URL handling
+        imageUrl: product.images && product.images.length > 0 ? product.images[0] : 
+                  product.image ? product.image : 
+                  product.imageUrl ? product.imageUrl : 
+                  "https://via.placeholder.com/400x300/3498db/ffffff?text=Product",
+        // Ensure stock status is set
+        inStock: product.inStock !== undefined ? product.inStock : 
+                product.stock !== undefined ? product.stock > 0 : 
+                product.quantity !== undefined ? product.quantity > 0 : 
+                true // Default to in stock if no stock info available
       }));
+      
+      // Log the first product for debugging
+      if (transformedProducts.length > 0) {
+        console.log('Sample product after transformation:', {
+          _id: transformedProducts[0]._id,
+          name: transformedProducts[0].name,
+          imageUrl: transformedProducts[0].imageUrl,
+          inStock: transformedProducts[0].inStock
+        });
+      }
       
       await client.close();
       
@@ -106,28 +125,31 @@ app.get('/api/products', async (req, res) => {
     console.error('Error fetching products:', error.message);
   }
   
-  // Fallback mock products
+  // Fallback mock products (now with inStock property)
   const mockProducts = [
     { 
       _id: "prod1", 
       name: "Office Chair", 
       price: 249.99, 
       isFeatured: true, 
-      imageUrl: "https://via.placeholder.com/400x300/3498db/ffffff?text=Office+Chair" 
+      imageUrl: "https://via.placeholder.com/400x300/3498db/ffffff?text=Office+Chair",
+      inStock: true 
     },
     { 
       _id: "prod2", 
       name: "Headphones", 
       price: 199.99, 
       isFeatured: true, 
-      imageUrl: "https://via.placeholder.com/400x300/e74c3c/ffffff?text=Headphones" 
+      imageUrl: "https://via.placeholder.com/400x300/e74c3c/ffffff?text=Headphones",
+      inStock: true
     },
     { 
       _id: "prod3", 
       name: "Laptop Stand", 
       price: 79.99, 
       isFeatured: false, 
-      imageUrl: "https://via.placeholder.com/400x300/2ecc71/ffffff?text=Laptop+Stand" 
+      imageUrl: "https://via.placeholder.com/400x300/2ecc71/ffffff?text=Laptop+Stand",
+      inStock: true
     }
   ];
   console.log('Returning mock products as fallback');
@@ -146,10 +168,20 @@ app.get('/api/products/featured', async (req, res) => {
       const products = await db.collection('products').find({ isFeatured: true }).toArray();
       console.log(`Found ${products.length} featured products in database`);
       
+      // Use the same transformation logic for consistency
       const transformedProducts = products.map(product => ({
         ...product,
         _id: product._id.toString(),
-        imageUrl: product.images && product.images.length > 0 ? product.images[0] : undefined
+        // Ensure proper image URL handling
+        imageUrl: product.images && product.images.length > 0 ? product.images[0] : 
+                  product.image ? product.image : 
+                  product.imageUrl ? product.imageUrl : 
+                  "https://via.placeholder.com/400x300/3498db/ffffff?text=Product",
+        // Ensure stock status is set
+        inStock: product.inStock !== undefined ? product.inStock : 
+                product.stock !== undefined ? product.stock > 0 : 
+                product.quantity !== undefined ? product.quantity > 0 : 
+                true // Default to in stock if no stock info available
       }));
       
       await client.close();
@@ -163,21 +195,23 @@ app.get('/api/products/featured', async (req, res) => {
     console.error('Error fetching featured products:', error.message);
   }
   
-  // Fallback featured products
+  // Fallback featured products (now with inStock property)
   const mockFeatured = [
     { 
       _id: "prod1", 
       name: "Office Chair", 
       price: 249.99, 
       isFeatured: true, 
-      imageUrl: "https://via.placeholder.com/400x300/3498db/ffffff?text=Office+Chair" 
+      imageUrl: "https://via.placeholder.com/400x300/3498db/ffffff?text=Office+Chair",
+      inStock: true
     },
     { 
       _id: "prod2", 
       name: "Headphones", 
       price: 199.99, 
       isFeatured: true, 
-      imageUrl: "https://via.placeholder.com/400x300/e74c3c/ffffff?text=Headphones" 
+      imageUrl: "https://via.placeholder.com/400x300/e74c3c/ffffff?text=Headphones",
+      inStock: true
     }
   ];
   console.log('Returning mock featured products as fallback');
@@ -207,11 +241,29 @@ app.get('/api/products/:id', async (req, res) => {
       await client.close();
       
       if (product) {
+        // Use the same transformation logic for consistency
         const transformedProduct = {
           ...product,
           _id: product._id.toString(),
-          imageUrl: product.images && product.images.length > 0 ? product.images[0] : undefined
+          // Ensure proper image URL handling
+          imageUrl: product.images && product.images.length > 0 ? product.images[0] : 
+                    product.image ? product.image : 
+                    product.imageUrl ? product.imageUrl : 
+                    "https://via.placeholder.com/400x300/3498db/ffffff?text=Product",
+          // Ensure stock status is set
+          inStock: product.inStock !== undefined ? product.inStock : 
+                  product.stock !== undefined ? product.stock > 0 : 
+                  product.quantity !== undefined ? product.quantity > 0 : 
+                  true // Default to in stock if no stock info available
         };
+        
+        console.log('Product after transformation:', {
+          _id: transformedProduct._id,
+          name: transformedProduct.name,
+          imageUrl: transformedProduct.imageUrl,
+          inStock: transformedProduct.inStock
+        });
+        
         return res.json(transformedProduct);
       }
     }
@@ -223,7 +275,8 @@ app.get('/api/products/:id', async (req, res) => {
         name: "Office Chair", 
         price: 249.99, 
         isFeatured: true, 
-        imageUrl: "https://via.placeholder.com/400x300/3498db/ffffff?text=Office+Chair" 
+        imageUrl: "https://via.placeholder.com/400x300/3498db/ffffff?text=Office+Chair",
+        inStock: true 
       });
     } else if (id === 'prod2') {
       return res.json({ 
@@ -231,7 +284,8 @@ app.get('/api/products/:id', async (req, res) => {
         name: "Headphones", 
         price: 199.99, 
         isFeatured: true, 
-        imageUrl: "https://via.placeholder.com/400x300/e74c3c/ffffff?text=Headphones" 
+        imageUrl: "https://via.placeholder.com/400x300/e74c3c/ffffff?text=Headphones",
+        inStock: true
       });
     } else if (id === 'prod3') {
       return res.json({ 
@@ -239,7 +293,8 @@ app.get('/api/products/:id', async (req, res) => {
         name: "Laptop Stand", 
         price: 79.99, 
         isFeatured: false, 
-        imageUrl: "https://via.placeholder.com/400x300/2ecc71/ffffff?text=Laptop+Stand" 
+        imageUrl: "https://via.placeholder.com/400x300/2ecc71/ffffff?text=Laptop+Stand",
+        inStock: true
       });
     }
     
