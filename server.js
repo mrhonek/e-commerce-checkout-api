@@ -4,6 +4,7 @@ const cors = require('cors');
 const { MongoClient, ObjectId } = require('mongodb');
 const nodemailer = require('nodemailer');
 const util = require('util');
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 const app = express();
 const port = process.env.PORT || 8080;
@@ -31,6 +32,8 @@ console.log('Node version:', process.version);
 console.log('Environment:', process.env.NODE_ENV || 'development');
 console.log('Port:', port);
 console.log('MongoDB URI exists:', !!process.env.MONGODB_URI);
+console.log('Stripe API Key exists:', !!process.env.STRIPE_SECRET_KEY);
+console.log('Stripe Webhook Secret exists:', !!process.env.STRIPE_WEBHOOK_SECRET);
 console.log('Email settings:', {
   EMAIL_HOST: process.env.EMAIL_HOST ? 'Set' : 'Not set',
   EMAIL_USER: process.env.EMAIL_USER ? 'Set' : 'Not set',
@@ -438,6 +441,17 @@ app.use((req, res, next) => {
   }
   next();
 });
+
+// Express middleware
+// You must call app.use(express.json()) before the webhook route
+app.use(express.json({
+  // Use raw body for Stripe webhook verification
+  verify: (req, res, buf) => {
+    if (req.originalUrl.startsWith('/api/webhook/stripe')) {
+      req.rawBody = buf.toString();
+    }
+  }
+}));
 
 // MongoDB connection helper
 async function connectToMongo() {
@@ -1433,6 +1447,108 @@ app.get('/api/orders/:orderId', (req, res) => {
   };
   
   res.json(order);
+});
+
+// Stripe webhook endpoint
+app.post('/api/webhook/stripe', async (req, res) => {
+  console.log('Received Stripe webhook event');
+  
+  let event;
+  
+  try {
+    // Verify the event came from Stripe
+    const signature = req.headers['stripe-signature'];
+    
+    if (!process.env.STRIPE_WEBHOOK_SECRET) {
+      console.error('Missing STRIPE_WEBHOOK_SECRET environment variable');
+      return res.status(500).send('Webhook secret not configured');
+    }
+    
+    try {
+      // Use the Stripe SDK to verify the signature
+      event = stripe.webhooks.constructEvent(
+        req.rawBody,
+        signature,
+        process.env.STRIPE_WEBHOOK_SECRET
+      );
+    } catch (err) {
+      console.error('Webhook signature verification failed:', err.message);
+      return res.status(400).send(`Webhook Error: ${err.message}`);
+    }
+    
+    // Handle specific events
+    console.log('Webhook event type:', event.type);
+    
+    switch (event.type) {
+      case 'payment_intent.succeeded':
+        const paymentIntent = event.data.object;
+        console.log('Payment succeeded:', paymentIntent.id);
+        
+        // Update order status, send confirmation email, etc.
+        // You can access metadata you passed with the payment:
+        const orderId = paymentIntent.metadata.orderId;
+        if (orderId) {
+          console.log('Order ID from metadata:', orderId);
+          
+          // In a real implementation, you would update the order in the database
+          // and possibly trigger other actions like inventory updates
+        }
+        break;
+        
+      case 'checkout.session.completed':
+        const session = event.data.object;
+        console.log('Checkout completed:', session.id);
+        
+        // Similar to payment_intent.succeeded, process the completed checkout
+        break;
+        
+      case 'payment_intent.payment_failed':
+        const failedPayment = event.data.object;
+        console.log('Payment failed:', failedPayment.id);
+        
+        // Handle failed payment, maybe send notification to customer
+        break;
+        
+      // You can add more event types as needed
+      
+      default:
+        // Unexpected event type
+        console.log(`Unhandled event type: ${event.type}`);
+    }
+    
+    // Return a 200 response to acknowledge receipt of the event
+    res.json({ received: true, type: event.type });
+  } catch (err) {
+    console.error('Webhook error:', err.message);
+    res.status(500).send(`Webhook Error: ${err.message}`);
+  }
+});
+
+// Add a Stripe test endpoint to trigger a test event
+app.get('/api/stripe/test', async (req, res) => {
+  if (process.env.NODE_ENV === 'production') {
+    return res.status(403).json({ error: 'Test endpoint not available in production' });
+  }
+  
+  try {
+    console.log('Creating a test payment intent');
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: 1999,
+      currency: 'usd',
+      metadata: {
+        orderId: 'test-order-' + Date.now()
+      }
+    });
+    
+    res.json({ 
+      message: 'Test payment intent created',
+      clientSecret: paymentIntent.client_secret,
+      paymentIntentId: paymentIntent.id
+    });
+  } catch (err) {
+    console.error('Error creating test payment intent:', err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Start the server
