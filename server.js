@@ -405,47 +405,21 @@ app.get('/api/products/:id', async (req, res) => {
   }
 });
 
-// Enhanced cart implementation
-// This global cart variable will be used only in memory for this demo
-const globalCart = {
-  items: [],
-  subtotal: 0,
-  total: 0,
-  totalItems: 0
-};
+// Complete replacement of the cart API with basic array structure
+// This is a targeted approach just to make the current frontend work
 
-// Multiple cart API formats to cover different frontend expectations
+// Reset the cart to use a simple array
+let cartItems = [];
 
-// Format 1: Simple array of items
+// Simple GET /api/cart - returns just the array of items
 app.get('/api/cart', (req, res) => {
-  console.log('GET /api/cart - returning simplified cart');
-  res.json(globalCart.items);  // Just return the array directly
+  console.log('GET /api/cart returning raw array:', cartItems);
+  res.json(cartItems);
 });
 
-// Format 2: Object with items array
-app.get('/api/cart/object', (req, res) => {
-  console.log('GET /api/cart/object - returning cart object');
-  res.json({ 
-    items: globalCart.items,
-    subtotal: globalCart.subtotal,
-    total: globalCart.total,
-    totalItems: globalCart.totalItems
-  });
-});
-
-// Format 3: Different naming
-app.get('/api/cart/alt', (req, res) => {
-  console.log('GET /api/cart/alt - returning alternative cart format');
-  res.json({ 
-    cartItems: globalCart.items,
-    cartTotal: globalCart.total,
-    itemCount: globalCart.totalItems
-  });
-});
-
-// Add to cart with multiple response formats
+// Basic add to cart - returns only the array
 app.post('/api/cart/items', async (req, res) => {
-  console.log('POST /api/cart/items', req.body);
+  console.log('POST /api/cart/items with body:', req.body);
   try {
     const { productId, quantity = 1 } = req.body;
     
@@ -456,98 +430,69 @@ app.post('/api/cart/items', async (req, res) => {
     // Generate a unique item ID
     const itemId = `item_${Date.now()}`;
     
-    // Get product details from database if possible
-    let productName = 'Product';
-    let productPrice = 0;
-    let productImage = '';
+    // Get product details from MongoDB if possible
+    let name = '';
+    let price = 0;
+    let imageUrl = '';
     
+    // Try to get product details from database
     const client = await connectToMongo();
     if (client) {
       const db = client.db();
       
-      // Try to find product by ID
       let product = null;
       if (productId.match(/^[0-9a-fA-F]{24}$/)) {
         product = await db.collection('products').findOne({ _id: new ObjectId(productId) });
       }
       
       if (product) {
-        productName = product.name || 'Product';
-        productPrice = typeof product.price === 'number' ? product.price : 
-                     typeof product.price === 'string' ? parseFloat(product.price) : 0;
-        productImage = product.images && product.images.length > 0 ? product.images[0] : 
-                     product.image || product.imageUrl || '';
-        
-        console.log('Found product details:', { productName, productPrice, productImage });
+        name = product.name || '';
+        price = typeof product.price === 'number' ? product.price : 
+                typeof product.price === 'string' ? parseFloat(product.price) : 0;
+        imageUrl = product.images && product.images.length > 0 ? product.images[0] : 
+                   product.image || product.imageUrl || '';
       }
       
       await client.close();
     }
     
-    // Create cart item
+    // Create a simple cart item
     const newItem = {
       id: itemId,
-      itemId, // Include both formats
       productId,
       quantity: Number(quantity),
-      name: productName,
-      price: productPrice,
-      imageUrl: productImage,
-      product: {
-        id: productId,
-        name: productName,
-        price: productPrice,
-        imageUrl: productImage
-      }
+      name,
+      price,
+      imageUrl
     };
     
-    // Add to global cart
-    globalCart.items.push(newItem);
+    // Add to cart
+    cartItems.push(newItem);
     
-    // Recalculate totals
-    globalCart.totalItems = globalCart.items.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
-    globalCart.subtotal = globalCart.items.reduce((sum, item) => sum + ((Number(item.price) || 0) * (Number(item.quantity) || 0)), 0);
-    globalCart.total = globalCart.subtotal;
+    console.log('Updated cartItems array:', cartItems);
     
-    console.log('Updated cart:', { 
-      itemCount: globalCart.items.length, 
-      totalItems: globalCart.totalItems,
-      subtotal: globalCart.subtotal
-    });
-    
-    // Return success with multiple formats
-    return res.status(200).json({
-      success: true,
-      item: newItem,
-      cart: globalCart.items,
-      cartObject: {
-        items: globalCart.items,
-        subtotal: globalCart.subtotal,
-        total: globalCart.total,
-        totalItems: globalCart.totalItems
-      }
-    });
+    // Return just the array
+    return res.json(cartItems);
   } catch (error) {
     console.error('Error adding to cart:', error);
-    return res.status(500).json({ error: 'Failed to add item to cart', details: error.message });
+    return res.status(500).json({ error: 'Failed to add item to cart' });
   }
 });
 
-// Generic catch-all endpoint for debugging
-app.all('/api/*', (req, res) => {
-  console.log(`UNHANDLED ${req.method} ${req.url}`);
-  console.log('Headers:', req.headers);
-  console.log('Body:', req.body);
-  console.log('Query:', req.query);
-  console.log('Params:', req.params);
+// Basic delete from cart
+app.delete('/api/cart/items/:itemId', (req, res) => {
+  const { itemId } = req.params;
+  console.log(`DELETE /api/cart/items/${itemId}`);
   
-  res.status(200).json({
-    message: `Received ${req.method} request to ${req.url}`,
-    body: req.body,
-    query: req.query,
-    params: req.params
-  });
+  // Filter out the item
+  cartItems = cartItems.filter(item => item.id !== itemId);
+  
+  // Return the updated array
+  return res.json(cartItems);
 });
+
+// Add other non-cart related endpoints here
+// ...
 
 // Shipping options
 app.get('/api/shipping', (req, res) => {
@@ -656,6 +601,22 @@ app.get('/api/cart/with-products', async (req, res) => {
     total: totals.total || 0,
     subtotal: totals.subtotal || 0,
     totalItems: totals.totalItems || 0
+  });
+});
+
+// Generic catch-all endpoint for debugging
+app.all('/api/*', (req, res) => {
+  console.log(`UNHANDLED ${req.method} ${req.url}`);
+  console.log('Headers:', req.headers);
+  console.log('Body:', req.body);
+  console.log('Query:', req.query);
+  console.log('Params:', req.params);
+  
+  res.status(200).json({
+    message: `Received ${req.method} request to ${req.url}`,
+    body: req.body,
+    query: req.query,
+    params: req.params
   });
 });
 
