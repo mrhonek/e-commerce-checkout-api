@@ -788,19 +788,19 @@ async function seedProductsToMongoDB() {
     
     // Define reliable Unsplash image URLs for products
     const unsplashImages = {
-      // Updated with user-selected images
-      coffeeMaker: "https://images.unsplash.com/photo-1570286424717-9rmnzkmydSY?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80",
-      kitchenKnives: "https://images.unsplash.com/photo-1566385101042-8aYsK1EoIX8?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80",
-      standMixer: "https://images.unsplash.com/photo-1622428051717-IBsRf_p0tHI?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80",
-      faceSerum: "https://images.unsplash.com/photo-1617897903246-WdJ4WnLxyDs?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80",
+      // Updated with user-selected images (corrected URLs)
+      coffeeMaker: "https://images.unsplash.com/photo-1501492673258-2bcfc17241fd?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80",
+      kitchenKnives: "https://plus.unsplash.com/premium_photo-1726729339060-c35947b01c28?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
+      standMixer: "https://plus.unsplash.com/premium_photo-1718186096304-e8a0be862bc7?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
+      faceSerum: "https://images.unsplash.com/photo-1576426863848-c21f53c60b19?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80",
       makeupBrushes: "https://images.unsplash.com/photo-1512496015851-a90fb38ba796?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80",
       hairStyling: "https://images.unsplash.com/photo-1562322140-8baeececf3df?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80",
-      wirelessEarbuds: "https://images.unsplash.com/photo-1606220588913-6V5vTuoeCZg?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80",
+      wirelessEarbuds: "https://images.unsplash.com/photo-1590658268037-6bf12165a8df?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80",
       winterJacket: "https://images.unsplash.com/photo-1544923246-77307dd654cb?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80",
-      blender: "https://images.unsplash.com/photo-1616093052322-jQ3VZkHYh_Q?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80",
+      blender: "https://plus.unsplash.com/premium_photo-1663853294058-3f85f18a4bed?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
       smartSpeaker: "https://images.unsplash.com/photo-1543512214-318c7553f230?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80",
       fitnessTracker: "https://images.unsplash.com/photo-1576243345690-4e4b79b63288?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80",
-      toasterOven: "https://images.unsplash.com/photo-1659921869048-RsZJU_7obYU?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80"
+      toasterOven: "https://plus.unsplash.com/premium_photo-1719452894874-3da9fa3b882c?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80"
     };
     
     // Define required products in all requested categories
