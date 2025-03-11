@@ -769,7 +769,7 @@ enhancedMockProducts.forEach((product, index) => {
 });
 
 // Function to seed the database with products
-async function seedProductsToMongoDB() {
+async function seedProductsToMongoDB(forceRefresh = false) {
   console.log('Attempting to seed products to MongoDB...');
   
   try {
@@ -989,6 +989,69 @@ async function seedProductsToMongoDB() {
     const existingSkus = await collection.distinct('sku');
     console.log('Existing product names:', existingProductNames);
     console.log('Existing SKUs:', existingSkus);
+    
+    // If force refresh is enabled, update all products
+    if (forceRefresh) {
+      console.log('Force refresh enabled - updating all products');
+      
+      // First, let's check the Sale and Deals categories
+      const saleCount = await collection.countDocuments({ onSale: true });
+      const dealsCount = await collection.countDocuments({ isDeal: true });
+      
+      console.log(`Found ${saleCount} Sale products and ${dealsCount} Deals products`);
+      
+      // Process each product in our required list to ensure it exists with correct data
+      for (const product of requiredProducts) {
+        const imageUrl = product.imageUnsplash;
+        
+        // Prepare the product data with proper image URLs and ObjectId
+        const processedProduct = {
+          ...product,
+          imageUrl: imageUrl,
+          image: imageUrl,
+          thumbnailUrl: imageUrl,
+          // Add an images array for compatibility with existing code
+          images: [imageUrl],
+          // Remove the temporary imageUnsplash property
+          imageUnsplash: undefined,
+          // Add a slug for SEO-friendly URLs
+          slug: product.name.toLowerCase().replace(/\s+/g, '-')
+        };
+        
+        // Check if this product exists
+        const existingProduct = await collection.findOne({ 
+          $or: [
+            { name: product.name },
+            { sku: product.sku }
+          ]
+        });
+        
+        if (existingProduct) {
+          // Update existing product
+          console.log(`Updating existing product: ${product.name}`);
+          
+          // Keep the existing _id
+          delete processedProduct._id;
+          
+          await collection.updateOne(
+            { _id: existingProduct._id },
+            { $set: processedProduct }
+          );
+        } else {
+          // Insert new product
+          console.log(`Adding new product: ${product.name}`);
+          
+          // Create a new MongoDB ObjectId
+          processedProduct._id = new ObjectId();
+          
+          await collection.insertOne(processedProduct);
+        }
+      }
+      
+      console.log('Products updated successfully');
+      await client.close();
+      return true;
+    }
     
     // Find products that don't exist yet by checking name and SKU
     const productsToAdd = requiredProducts.filter(
@@ -1498,12 +1561,97 @@ app.get('/api/products/category/:category', async (req, res) => {
     if (client) {
       const db = client.db();
       
+      // Special handling for "sale" and "deals" categories
+      if (category === "sale" || category === "deals") {
+        console.log(`Special handling for ${category} category`);
+        
+        let query = {};
+        if (category === "sale") {
+          query = { onSale: true };
+        } else if (category === "deals") {
+          query = { isDeal: true };
+        }
+        
+        // Find products matching the query
+        const products = await db.collection('products').find(query).toArray();
+        
+        if (products.length > 0) {
+          console.log(`Found ${products.length} products in ${category} category`);
+          
+          // Transform the products to ensure consistent object structure
+          const transformedProducts = products.map(product => {
+            // Determine the proper image URL
+            let mainImage = null;
+            
+            if (product.images && product.images.length > 0) {
+              mainImage = product.images[0];
+            } else if (product.image) {
+              mainImage = product.image;
+            } else if (product.imageUrl) {
+              mainImage = product.imageUrl;
+            } else {
+              mainImage = `/images/sample/placeholder.jpg`;
+            }
+            
+            // Ensure the price is a valid number
+            const price = typeof product.price === 'number' ? product.price : 
+                          typeof product.price === 'string' ? parseFloat(product.price) : 
+                          99.99; // Default price if undefined or invalid
+            
+            return {
+              ...product,
+              _id: product._id.toString(), // Convert ObjectId to string for frontend
+              // Ensure image URLs are set
+              image: mainImage,
+              imageUrl: mainImage,
+              thumbnailUrl: mainImage,
+              // Ensure price is a valid number
+              price: price,
+              // Ensure stock status is set
+              inStock: product.inStock === undefined ? true : !!product.inStock
+            };
+          });
+          
+          await client.close();
+          return res.json(transformedProducts);
+        } else {
+          console.log(`No products found in ${category} category, attempting to trigger product refresh`);
+          
+          // Close the existing connection first
+          await client.close();
+          
+          // Try to refresh the products
+          await seedProductsToMongoDB(true);
+          
+          // Try again with a new connection
+          const refreshClient = await connectToMongo();
+          if (refreshClient) {
+            const refreshDb = refreshClient.db();
+            const refreshedProducts = await refreshDb.collection('products').find(query).toArray();
+            await refreshClient.close();
+            
+            if (refreshedProducts.length > 0) {
+              console.log(`Found ${refreshedProducts.length} products in ${category} category after refresh`);
+              return res.json(refreshedProducts.map(product => ({
+                ...product,
+                _id: product._id.toString()
+              })));
+            }
+          }
+          
+          // If still no products, return empty array
+          console.log(`Still no products found in ${category} category after refresh`);
+          return res.json([]);
+        }
+      }
+      
+      // Normal category handling (for non-sale, non-deals categories)
       // Try to find by category using various patterns for flexible matching
       const categoryPatterns = [
         formattedCategory,                          // Exact match
         new RegExp(`^${formattedCategory}$`, 'i'),  // Case-insensitive exact match
         new RegExp(formattedCategory, 'i'),         // Contains the category
-        // For handling special cases like "sale" or "deals"
+        // For handling special cases
         category.toLowerCase()
       ];
       
@@ -1527,22 +1675,6 @@ app.get('/api/products/category/:category', async (req, res) => {
         }).toArray();
       }
       
-      // For "sale" category, look for onSale flag
-      if (category === "sale" && products.length === 0) {
-        console.log('Checking for products with onSale flag');
-        products = await db.collection('products').find({
-          onSale: true
-        }).toArray();
-      }
-      
-      // For "deals" category, look for isDeal flag
-      if (category === "deals" && products.length === 0) {
-        console.log('Checking for products with isDeal flag');
-        products = await db.collection('products').find({
-          isDeal: true
-        }).toArray();
-      }
-      
       await client.close();
       
       if (products.length > 0) {
@@ -1554,13 +1686,13 @@ app.get('/api/products/category/:category', async (req, res) => {
           let mainImage = null;
           
           if (product.images && product.images.length > 0) {
-            mainImage = getImageUrl(product.images[0]);
+            mainImage = product.images[0];
           } else if (product.image) {
-            mainImage = getImageUrl(product.image);
+            mainImage = product.image;
           } else if (product.imageUrl) {
-            mainImage = getImageUrl(product.imageUrl);
+            mainImage = product.imageUrl;
           } else {
-            mainImage = getPlaceholderImage(product.name);
+            mainImage = `/images/sample/placeholder.jpg`;
           }
           
           // Ensure the price is a valid number
@@ -2717,6 +2849,25 @@ app.get('/api/admin/reseed-products', async (req, res) => {
   } catch (error) {
     console.error('Error in reseed products endpoint:', error);
     res.status(500).json({ success: false, message: 'Error reseeding products', error: error.message });
+  }
+});
+
+// Add a separate endpoint to refresh product data
+app.get('/api/admin/refresh-products', async (req, res) => {
+  console.log('Refreshing product data...');
+  
+  try {
+    // Call the seed function with force refresh option
+    const result = await seedProductsToMongoDB(true);
+    
+    if (result) {
+      res.json({ success: true, message: 'Product data refreshed successfully' });
+    } else {
+      res.status(500).json({ success: false, message: 'Failed to refresh product data' });
+    }
+  } catch (error) {
+    console.error('Error refreshing product data:', error);
+    res.status(500).json({ success: false, message: 'Error refreshing product data', error: error.message });
   }
 });
 
