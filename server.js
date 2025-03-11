@@ -786,6 +786,22 @@ async function seedProductsToMongoDB() {
     const count = await collection.countDocuments();
     console.log(`Found ${count} existing products in database`);
     
+    // Define reliable Unsplash image URLs for products
+    const unsplashImages = {
+      coffeeMaker: "https://images.unsplash.com/photo-1517142089942-ba376ce32a2e?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80",
+      kitchenKnives: "https://images.unsplash.com/photo-1556306510-31ca015374b0?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80",
+      standMixer: "https://images.unsplash.com/photo-1558138838-76294be30005?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80",
+      faceSerum: "https://images.unsplash.com/photo-1570194065650-d99fb4cb64c4?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80",
+      makeupBrushes: "https://images.unsplash.com/photo-1512496015851-a90fb38ba796?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80",
+      hairStyling: "https://images.unsplash.com/photo-1562322140-8baeececf3df?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80",
+      wirelessEarbuds: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80",
+      winterJacket: "https://images.unsplash.com/photo-1544923246-77307dd654cb?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80",
+      blender: "https://images.unsplash.com/photo-1554176259-aa961df1a8bb?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80",
+      smartSpeaker: "https://images.unsplash.com/photo-1543512214-318c7553f230?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80",
+      fitnessTracker: "https://images.unsplash.com/photo-1576243345690-4e4b79b63288?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80",
+      toasterOven: "https://images.unsplash.com/photo-1586254574632-54a5d8e0464d?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80"
+    };
+    
     // Define required products in all requested categories
     const requiredProducts = [
       // Home & Kitchen category
@@ -798,7 +814,7 @@ async function seedProductsToMongoDB() {
         featured: true,
         rating: 4.6,
         reviews: 85,
-        image: "product1.jpg",
+        imageUnsplash: unsplashImages.coffeeMaker,
         onSale: false,
         tags: ["kitchen", "appliances"],
         sku: "HK-CM-001"
@@ -812,7 +828,7 @@ async function seedProductsToMongoDB() {
         featured: false,
         rating: 4.8,
         reviews: 92,
-        image: "product2.jpg",
+        imageUnsplash: unsplashImages.kitchenKnives,
         isDeal: true,
         tags: ["kitchen", "cooking", "deal"],
         sku: "HK-KS-002"
@@ -826,7 +842,7 @@ async function seedProductsToMongoDB() {
         featured: false,
         rating: 4.7,
         reviews: 64,
-        image: "product3.jpg",
+        imageUnsplash: unsplashImages.standMixer,
         tags: ["kitchen", "baking"],
         sku: "HK-SM-003"
       },
@@ -841,7 +857,7 @@ async function seedProductsToMongoDB() {
         featured: true,
         rating: 4.9,
         reviews: 120,
-        image: "product4.jpg",
+        imageUnsplash: unsplashImages.faceSerum,
         tags: ["skincare", "beauty"],
         sku: "BTY-FS-004"
       },
@@ -854,7 +870,7 @@ async function seedProductsToMongoDB() {
         inStock: true,
         rating: 4.6,
         reviews: 87,
-        image: "product5.jpg",
+        imageUnsplash: unsplashImages.makeupBrushes,
         tags: ["makeup", "beauty"],
         sku: "BTY-MB-005"
       },
@@ -867,7 +883,7 @@ async function seedProductsToMongoDB() {
         featured: false,
         rating: 4.5,
         reviews: 76,
-        image: "product1.jpg",
+        imageUnsplash: unsplashImages.hairStyling,
         tags: ["hair", "beauty"],
         sku: "BTY-HK-006"
       },
@@ -883,7 +899,7 @@ async function seedProductsToMongoDB() {
         featured: true,
         rating: 4.7,
         reviews: 215,
-        image: "product2.jpg",
+        imageUnsplash: unsplashImages.wirelessEarbuds,
         onSale: true,
         tags: ["electronics", "audio", "sale"],
         sku: "SALE-WE-007"
@@ -898,7 +914,7 @@ async function seedProductsToMongoDB() {
         featured: false,
         rating: 4.5,
         reviews: 65,
-        image: "product3.jpg",
+        imageUnsplash: unsplashImages.winterJacket,
         onSale: true,
         tags: ["clothing", "winter", "sale"],
         sku: "SALE-WJ-008"
@@ -913,7 +929,7 @@ async function seedProductsToMongoDB() {
         featured: false,
         rating: 4.5,
         reviews: 94,
-        image: "product4.jpg",
+        imageUnsplash: unsplashImages.blender,
         onSale: true,
         tags: ["kitchen", "appliances", "sale"],
         sku: "SALE-BL-009"
@@ -930,7 +946,7 @@ async function seedProductsToMongoDB() {
         featured: true,
         rating: 4.4,
         reviews: 178,
-        image: "product5.jpg",
+        imageUnsplash: unsplashImages.smartSpeaker,
         isDeal: true,
         tags: ["electronics", "smart home", "deal"],
         sku: "DEAL-SS-010"
@@ -945,7 +961,7 @@ async function seedProductsToMongoDB() {
         featured: false,
         rating: 4.3,
         reviews: 156,
-        image: "product1.jpg",
+        imageUnsplash: unsplashImages.fitnessTracker,
         isDeal: true,
         tags: ["electronics", "fitness", "deal"],
         sku: "DEAL-FT-011"
@@ -960,7 +976,7 @@ async function seedProductsToMongoDB() {
         featured: false,
         rating: 4.2,
         reviews: 87,
-        image: "product2.jpg",
+        imageUnsplash: unsplashImages.toasterOven,
         isDeal: true,
         tags: ["kitchen", "appliances", "deal"],
         sku: "DEAL-TO-012"
@@ -982,32 +998,84 @@ async function seedProductsToMongoDB() {
     if (productsToAdd.length > 0) {
       console.log(`Adding ${productsToAdd.length} required products to database...`);
       
-      // Process the products to add proper ObjectIds, image URLs and slugs
+      // Process the products to add proper ObjectIds and image URLs 
       const processedProducts = productsToAdd.map(product => {
-        // Convert image filename to full URL with proper path
-        const imageBase = product.image.startsWith('http') 
-          ? product.image 
-          : `/images/sample/${product.image}`;
+        // Use the Unsplash image URL from our defined object
+        const imageUrl = product.imageUnsplash;
         
         return {
           ...product,
           _id: new ObjectId(), // Generate a proper MongoDB ObjectId
-          imageUrl: imageBase,
-          image: imageBase,
-          thumbnailUrl: imageBase,
+          imageUrl: imageUrl,
+          image: imageUrl,
+          thumbnailUrl: imageUrl,
+          // Add an images array for compatibility with existing code
+          images: [imageUrl],
+          // Remove the temporary imageUnsplash property
+          imageUnsplash: undefined,
+          // Add a slug for SEO-friendly URLs
           slug: product.name.toLowerCase().replace(/\s+/g, '-')
         };
       });
       
       // Insert the new products
       const result = await collection.insertMany(processedProducts);
-      console.log(`Added ${result.insertedCount} new products to database with proper ObjectIds and images`);
+      console.log(`Added ${result.insertedCount} new products to database with Unsplash images`);
+      
+      // Return success
+      await client.close();
+      return true;
     } else {
       console.log('All required products already exist in database');
+      
+      // Let's update existing products with Unsplash images if they don't have proper images
+      const productsToUpdate = [];
+      
+      for (const requiredProduct of requiredProducts) {
+        // Try to find the product by name
+        const existingProduct = await collection.findOne({ 
+          $or: [
+            { name: requiredProduct.name },
+            { sku: requiredProduct.sku }
+          ]
+        });
+        
+        if (existingProduct) {
+          // Check if the product has an Unsplash image already
+          const hasUnsplashImage = existingProduct.imageUrl && 
+                                  existingProduct.imageUrl.includes('unsplash.com');
+          
+          // If it doesn't have an Unsplash image, update it
+          if (!hasUnsplashImage && requiredProduct.imageUnsplash) {
+            console.log(`Updating image for ${existingProduct.name} to use Unsplash image`);
+            
+            const imageUrl = requiredProduct.imageUnsplash;
+            
+            // Update the product with proper image URLs
+            await collection.updateOne(
+              { _id: existingProduct._id },
+              { 
+                $set: {
+                  imageUrl: imageUrl,
+                  image: imageUrl,
+                  thumbnailUrl: imageUrl,
+                  images: [imageUrl]
+                }
+              }
+            );
+            
+            productsToUpdate.push(existingProduct.name);
+          }
+        }
+      }
+      
+      if (productsToUpdate.length > 0) {
+        console.log(`Updated ${productsToUpdate.length} existing products with Unsplash images: ${productsToUpdate.join(', ')}`);
+      }
+      
+      await client.close();
+      return true;
     }
-    
-    await client.close();
-    return true;
   } catch (error) {
     console.error('Error seeding products to MongoDB:', error);
     return false;
