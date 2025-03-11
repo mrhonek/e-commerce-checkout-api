@@ -788,18 +788,19 @@ async function seedProductsToMongoDB() {
     
     // Define reliable Unsplash image URLs for products
     const unsplashImages = {
-      coffeeMaker: "https://images.unsplash.com/photo-1517142089942-ba376ce32a2e?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80",
-      kitchenKnives: "https://images.unsplash.com/photo-1556306510-31ca015374b0?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80",
-      standMixer: "https://images.unsplash.com/photo-1558138838-76294be30005?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80",
-      faceSerum: "https://images.unsplash.com/photo-1570194065650-d99fb4cb64c4?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80",
+      // Updated with user-selected images
+      coffeeMaker: "https://images.unsplash.com/photo-1570286424717-9rmnzkmydSY?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80",
+      kitchenKnives: "https://images.unsplash.com/photo-1566385101042-8aYsK1EoIX8?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80",
+      standMixer: "https://images.unsplash.com/photo-1622428051717-IBsRf_p0tHI?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80",
+      faceSerum: "https://images.unsplash.com/photo-1617897903246-WdJ4WnLxyDs?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80",
       makeupBrushes: "https://images.unsplash.com/photo-1512496015851-a90fb38ba796?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80",
       hairStyling: "https://images.unsplash.com/photo-1562322140-8baeececf3df?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80",
-      wirelessEarbuds: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80",
+      wirelessEarbuds: "https://images.unsplash.com/photo-1606220588913-6V5vTuoeCZg?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80",
       winterJacket: "https://images.unsplash.com/photo-1544923246-77307dd654cb?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80",
-      blender: "https://images.unsplash.com/photo-1554176259-aa961df1a8bb?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80",
+      blender: "https://images.unsplash.com/photo-1616093052322-jQ3VZkHYh_Q?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80",
       smartSpeaker: "https://images.unsplash.com/photo-1543512214-318c7553f230?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80",
       fitnessTracker: "https://images.unsplash.com/photo-1576243345690-4e4b79b63288?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80",
-      toasterOven: "https://images.unsplash.com/photo-1586254574632-54a5d8e0464d?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80"
+      toasterOven: "https://images.unsplash.com/photo-1659921869048-RsZJU_7obYU?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80"
     };
     
     // Define required products in all requested categories
@@ -1041,13 +1042,27 @@ async function seedProductsToMongoDB() {
         });
         
         if (existingProduct) {
-          // Check if the product has an Unsplash image already
-          const hasUnsplashImage = existingProduct.imageUrl && 
-                                  existingProduct.imageUrl.includes('unsplash.com');
+          // Products that must be updated with new images regardless of current image
+          const forceUpdateProducts = [
+            "Coffee Maker", 
+            "Kitchen Knife Set", 
+            "Stand Mixer", 
+            "Face Serum", 
+            "Wireless Earbuds",
+            "Blender",
+            "Toaster Oven"
+          ];
           
-          // If it doesn't have an Unsplash image, update it
-          if (!hasUnsplashImage && requiredProduct.imageUnsplash) {
-            console.log(`Updating image for ${existingProduct.name} to use Unsplash image`);
+          // Determine if this product needs a forced update
+          const needsForcedUpdate = forceUpdateProducts.includes(requiredProduct.name);
+          
+          // Check if the product already has an Unsplash image
+          const hasUnsplashImage = existingProduct.imageUrl && 
+                                existingProduct.imageUrl.includes('unsplash.com');
+          
+          // Update if it doesn't have an Unsplash image or if it needs a forced update
+          if ((!hasUnsplashImage || needsForcedUpdate) && requiredProduct.imageUnsplash) {
+            console.log(`Updating image for ${existingProduct.name} to use new Unsplash image`);
             
             const imageUrl = requiredProduct.imageUnsplash;
             
