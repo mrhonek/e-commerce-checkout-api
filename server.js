@@ -492,24 +492,33 @@ try {
   console.error('Error setting up static directories:', error);
 }
 
-// Helper to get correct image URL
+// Helper function to construct proper image URLs
 function getImageUrl(imagePath) {
-  if (!imagePath) return null;
+  if (!imagePath) {
+    return '/images/sample/placeholder.jpg';
+  }
   
-  // If it's already an absolute URL with http/https, return as is
-  if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+  // If it's already a complete URL, return as is
+  if (imagePath.startsWith('http')) {
     return imagePath;
   }
   
-  // If it's a relative path, make it absolute
-  const baseUrl = process.env.BASE_URL || 'https://e-commerce-checkout-api-production.up.railway.app';
-  
-  // Handle different path formats
-  if (imagePath.startsWith('/')) {
-    return `${baseUrl}${imagePath}`;
-  } else {
-    return `${baseUrl}/static/images/${imagePath}`;
+  // Handle various relative paths by standardizing them
+  if (imagePath.startsWith('/public/')) {
+    return imagePath;
   }
+  
+  if (imagePath.startsWith('/images/')) {
+    return imagePath;
+  }
+  
+  // For product1.jpg, product2.jpg etc., use the sample images directory
+  if (imagePath.match(/^product\d+\.jpg$/)) {
+    return `/images/sample/${imagePath}`;
+  }
+  
+  // Default case - assume it's in the sample images directory
+  return `/images/sample/${imagePath}`;
 }
 
 // Add placeholder image URLs to use as fallbacks
@@ -777,79 +786,22 @@ async function seedProductsToMongoDB() {
     const count = await collection.countDocuments();
     console.log(`Found ${count} existing products in database`);
     
-    // Define required category products that must exist in the database
+    // Define required products in all requested categories
     const requiredProducts = [
+      // Home & Kitchen category
       {
         name: "Coffee Maker",
         description: "Premium automatic coffee maker with timer and programmable settings.",
         price: 79.99,
         category: "Home & Kitchen",
         inStock: true,
-        featured: false,
+        featured: true,
         rating: 4.6,
         reviews: 85,
         image: "product1.jpg",
-        onSale: true,
-        originalPrice: "99.99",
-        tags: ["kitchen", "appliances", "sale"],
-        sku: "HK-CM-001" // Add unique SKU
-      },
-      {
-        name: "Face Serum",
-        description: "Hydrating face serum with vitamin C and hyaluronic acid.",
-        price: 24.99,
-        category: "Beauty",
-        inStock: true,
-        featured: false,
-        rating: 4.9,
-        reviews: 120,
-        image: "product2.jpg",
-        tags: ["skincare", "beauty"],
-        sku: "BTY-FS-002" // Add unique SKU
-      },
-      {
-        name: "Wireless Earbuds",
-        description: "Noise-cancelling wireless earbuds with premium sound quality.",
-        price: 49.99,
-        category: "Electronics",
-        inStock: true,
-        featured: true,
-        rating: 4.7,
-        reviews: 215,
-        image: "product3.jpg",
-        onSale: true,
-        originalPrice: "69.99",
-        tags: ["electronics", "audio", "sale"],
-        sku: "ELEC-WE-003" // Add unique SKU
-      },
-      {
-        name: "Winter Jacket",
-        description: "Warm winter jacket with waterproof outer layer and insulated lining.",
-        price: 79.99,
-        category: "Clothing",
-        inStock: true,
-        featured: false,
-        rating: 4.5,
-        reviews: 65,
-        image: "product4.jpg",
-        onSale: true,
-        originalPrice: "99.99",
-        tags: ["clothing", "winter", "sale"],
-        sku: "CLO-WJ-004" // Add unique SKU
-      },
-      {
-        name: "Smart Speaker",
-        description: "Voice-controlled smart speaker with built-in assistant.",
-        price: 39.99,
-        category: "Electronics",
-        inStock: true,
-        featured: false,
-        rating: 4.4,
-        reviews: 178,
-        image: "product1.jpg",
-        isDeal: true,
-        tags: ["electronics", "smart home", "deal"],
-        sku: "ELEC-SS-005" // Add unique SKU
+        onSale: false,
+        tags: ["kitchen", "appliances"],
+        sku: "HK-CM-001"
       },
       {
         name: "Kitchen Knife Set",
@@ -863,13 +815,159 @@ async function seedProductsToMongoDB() {
         image: "product2.jpg",
         isDeal: true,
         tags: ["kitchen", "cooking", "deal"],
-        sku: "HK-KS-006" // Add unique SKU
+        sku: "HK-KS-002"
+      },
+      {
+        name: "Stand Mixer",
+        description: "Powerful stand mixer for baking and cooking.",
+        price: 129.99,
+        category: "Home & Kitchen",
+        inStock: true,
+        featured: false,
+        rating: 4.7,
+        reviews: 64,
+        image: "product3.jpg",
+        tags: ["kitchen", "baking"],
+        sku: "HK-SM-003"
+      },
+      
+      // Beauty category
+      {
+        name: "Face Serum",
+        description: "Hydrating face serum with vitamin C and hyaluronic acid.",
+        price: 24.99,
+        category: "Beauty",
+        inStock: true,
+        featured: true,
+        rating: 4.9,
+        reviews: 120,
+        image: "product4.jpg",
+        tags: ["skincare", "beauty"],
+        sku: "BTY-FS-004"
+      },
+      {
+        name: "Makeup Brush Set",
+        description: "Professional makeup brush set with carrying case.",
+        price: 34.99, 
+        category: "Beauty",
+        featured: false,
+        inStock: true,
+        rating: 4.6,
+        reviews: 87,
+        image: "product5.jpg",
+        tags: ["makeup", "beauty"],
+        sku: "BTY-MB-005"
+      },
+      {
+        name: "Hair Styling Kit",
+        description: "Complete hair styling kit with dryer, straightener, and curling iron.",
+        price: 89.99,
+        category: "Beauty",
+        inStock: true,
+        featured: false,
+        rating: 4.5,
+        reviews: 76,
+        image: "product1.jpg",
+        tags: ["hair", "beauty"],
+        sku: "BTY-HK-006"
+      },
+      
+      // Sale items - note these have real categories but are tagged as sale
+      {
+        name: "Wireless Earbuds",
+        description: "Noise-cancelling wireless earbuds with premium sound quality.",
+        price: 49.99,
+        originalPrice: 79.99,
+        category: "Electronics",
+        inStock: true,
+        featured: true,
+        rating: 4.7,
+        reviews: 215,
+        image: "product2.jpg",
+        onSale: true,
+        tags: ["electronics", "audio", "sale"],
+        sku: "SALE-WE-007"
+      },
+      {
+        name: "Winter Jacket",
+        description: "Warm winter jacket with waterproof outer layer and insulated lining.",
+        price: 79.99,
+        originalPrice: 129.99,
+        category: "Clothing",
+        inStock: true,
+        featured: false,
+        rating: 4.5,
+        reviews: 65,
+        image: "product3.jpg",
+        onSale: true,
+        tags: ["clothing", "winter", "sale"],
+        sku: "SALE-WJ-008"
+      },
+      {
+        name: "Blender",
+        description: "High-power blender for smoothies and food prep.",
+        price: 59.99,
+        originalPrice: 89.99,
+        category: "Home & Kitchen",
+        inStock: true,
+        featured: false,
+        rating: 4.5,
+        reviews: 94,
+        image: "product4.jpg",
+        onSale: true,
+        tags: ["kitchen", "appliances", "sale"],
+        sku: "SALE-BL-009"
+      },
+      
+      // Deals items - note these have real categories but are tagged as deals
+      {
+        name: "Smart Speaker",
+        description: "Voice-controlled smart speaker with built-in assistant.",
+        price: 39.99,
+        originalPrice: 59.99,
+        category: "Electronics",
+        inStock: true,
+        featured: true,
+        rating: 4.4,
+        reviews: 178,
+        image: "product5.jpg",
+        isDeal: true,
+        tags: ["electronics", "smart home", "deal"],
+        sku: "DEAL-SS-010"
+      },
+      {
+        name: "Fitness Tracker",
+        description: "Water-resistant fitness tracker with heart rate monitoring.",
+        price: 49.99,
+        originalPrice: 69.99,
+        category: "Electronics",
+        inStock: true,
+        featured: false,
+        rating: 4.3,
+        reviews: 156,
+        image: "product1.jpg",
+        isDeal: true,
+        tags: ["electronics", "fitness", "deal"],
+        sku: "DEAL-FT-011"
+      },
+      {
+        name: "Toaster Oven",
+        description: "Compact toaster oven with multiple cooking functions.",
+        price: 44.99,
+        originalPrice: 64.99,
+        category: "Home & Kitchen",
+        inStock: true,
+        featured: false,
+        rating: 4.2,
+        reviews: 87,
+        image: "product2.jpg",
+        isDeal: true,
+        tags: ["kitchen", "appliances", "deal"],
+        sku: "DEAL-TO-012"
       }
     ];
     
-    // Fix the async await issue
-    // We need to check for existing SKUs but we can't use await in a filter function directly
-    // Let's get all existing SKUs first and then check against that array
+    // Get existing product names and SKUs
     const existingProductNames = await collection.distinct('name');
     const existingSkus = await collection.distinct('sku');
     console.log('Existing product names:', existingProductNames);
@@ -884,117 +982,34 @@ async function seedProductsToMongoDB() {
     if (productsToAdd.length > 0) {
       console.log(`Adding ${productsToAdd.length} required products to database...`);
       
-      // Process the products to add proper image URLs and other fields
+      // Process the products to add proper ObjectIds, image URLs and slugs
       const processedProducts = productsToAdd.map(product => {
-        // Convert image filename to full URL if needed
-        const image = product.image.startsWith('http') 
+        // Convert image filename to full URL with proper path
+        const imageBase = product.image.startsWith('http') 
           ? product.image 
-          : `/public/sample-images/${product.image}`;
+          : `/images/sample/${product.image}`;
         
         return {
           ...product,
           _id: new ObjectId(), // Generate a proper MongoDB ObjectId
-          imageUrl: image,
-          image: image,
+          imageUrl: imageBase,
+          image: imageBase,
+          thumbnailUrl: imageBase,
           slug: product.name.toLowerCase().replace(/\s+/g, '-')
         };
       });
       
       // Insert the new products
       const result = await collection.insertMany(processedProducts);
-      console.log(`Added ${result.insertedCount} new products to database`);
+      console.log(`Added ${result.insertedCount} new products to database with proper ObjectIds and images`);
     } else {
       console.log('All required products already exist in database');
-    }
-    
-    if (count < 5) {
-      console.log('Not enough products in database, seeding enhanced products...');
-      
-      // Insert our enhanced products that aren't already required
-      const enhancedProductsToAdd = enhancedMockProducts
-        .filter(product => !requiredProducts.some(req => req.name === product.name) && 
-                          !existingProductNames.includes(product.name) &&
-                          (!product.sku || !existingSkus.includes(product.sku)))
-        .map((product, index) => {
-          // Add a SKU if it doesn't have one already
-          if (!product.sku) {
-            return {
-              ...product,
-              sku: `MOCK-${index + 100}` // Ensure unique SKUs with a high number offset
-            };
-          }
-          return product;
-        });
-      
-      if (enhancedProductsToAdd.length > 0) {
-        const result = await collection.insertMany(enhancedProductsToAdd);
-        console.log(`Seeded ${result.insertedCount} additional enhanced products to database`);
-      }
-    }
-    
-    // Update existing products with sale and deal tags
-    const products = await collection.find().toArray();
-    
-    // Update products with sale and deal tags
-    const bulkUpdateOps = [];
-    
-    products.forEach((product, index) => {
-      const updateDoc = { $set: {} };
-      let needsUpdate = false;
-      
-      // Check if the product already exists in our required list and already has tags
-      const requiredProduct = requiredProducts.find(req => req.name === product.name);
-      if (requiredProduct) {
-        // Use the tags from requiredProducts
-        if (requiredProduct.onSale && !product.onSale) {
-          updateDoc.$set.onSale = true;
-          updateDoc.$set.originalPrice = requiredProduct.originalPrice;
-          needsUpdate = true;
-        }
-        if (requiredProduct.isDeal && !product.isDeal) {
-          updateDoc.$set.isDeal = true;
-          needsUpdate = true;
-        }
-        if (requiredProduct.tags && (!product.tags || product.tags.length === 0)) {
-          updateDoc.$set.tags = requiredProduct.tags;
-          needsUpdate = true;
-        }
-      } else {
-        // For other products, use the rotation rule
-        // Mark every third product as on sale
-        if (index % 3 === 0 && !product.onSale) {
-          updateDoc.$set.onSale = true;
-          updateDoc.$set.originalPrice = (product.price * 1.25).toFixed(2);
-          needsUpdate = true;
-        }
-        
-        // Mark every fourth product as a deal
-        if (index % 4 === 0 && !product.isDeal) {
-          updateDoc.$set.isDeal = true;
-          needsUpdate = true;
-        }
-      }
-      
-      // Only add to bulk ops if we have fields to update
-      if (needsUpdate) {
-        bulkUpdateOps.push({
-          updateOne: {
-            filter: { _id: product._id },
-            update: updateDoc
-          }
-        });
-      }
-    });
-    
-    if (bulkUpdateOps.length > 0) {
-      const updateResult = await collection.bulkWrite(bulkUpdateOps);
-      console.log(`Updated ${updateResult.modifiedCount} products with sale and deal tags`);
     }
     
     await client.close();
     return true;
   } catch (error) {
-    console.error('Error seeding products:', error);
+    console.error('Error seeding products to MongoDB:', error);
     return false;
   }
 }
@@ -1020,65 +1035,79 @@ app.get('/api/products', async (req, res) => {
     if (client) {
       const db = client.db();
       const products = await db.collection('products').find().toArray();
-      console.log(`Found ${products.length} products in database`);
-      
-      // Debug the image data structure of the first product
-      if (products.length > 0) {
-        console.log('Sample product image data:', {
-          name: products[0].name,
-          images: products[0].images,
-          image: products[0].image,
-          imageUrl: products[0].imageUrl,
-          thumbnails: products[0].thumbnails
-        });
-      }
-      
-      // Transform products for frontend compatibility with better image and stock handling
-      const transformedProducts = products.map(product => {
-        // Determine the proper image URL or provide a fallback
-        let mainImage = null;
-        
-        if (product.images && product.images.length > 0) {
-          mainImage = getImageUrl(product.images[0]);
-        } else if (product.image) {
-          mainImage = getImageUrl(product.image);
-        } else if (product.imageUrl) {
-          mainImage = getImageUrl(product.imageUrl);
-        } else {
-          // Use a nicer looking placeholder from Unsplash instead of placeholder.com
-          mainImage = getPlaceholderImage(product.name);
-        }
-        
-        // Ensure the price is a valid number
-        const price = typeof product.price === 'number' ? product.price : 
-                      typeof product.price === 'string' ? parseFloat(product.price) : 
-                      99.99; // Default price if undefined or invalid
-        
-        return {
-          ...product,
-          _id: product._id.toString(),
-          image: mainImage,
-          imageUrl: mainImage,
-          thumbnailUrl: mainImage,
-          price: price,
-          inStock: product.inStock === undefined ? true : !!product.inStock,
-          featured: product.featured === undefined ? false : !!product.featured,
-          slug: product.slug || product.name.toLowerCase().replace(/\s+/g, '-')
-        };
-      });
-      
       await client.close();
       
-      if (transformedProducts.length > 0) {
+      if (products.length > 0) {
+        console.log(`Found ${products.length} products in database`);
+        
+        // Transform the products for consistency
+        const transformedProducts = products.map(product => {
+          // Determine the proper image URL
+          let mainImage = null;
+          
+          if (product.images && product.images.length > 0) {
+            mainImage = getImageUrl(product.images[0]);
+          } else if (product.image) {
+            mainImage = getImageUrl(product.image);
+          } else if (product.imageUrl) {
+            mainImage = getImageUrl(product.imageUrl);
+          } else {
+            mainImage = getPlaceholderImage(product.name);
+          }
+          
+          // Ensure the price is a valid number
+          const price = typeof product.price === 'number' ? product.price : 
+                       typeof product.price === 'string' ? parseFloat(product.price) : 
+                       99.99; // Default price if undefined or invalid
+          
+          return {
+            ...product,
+            _id: product._id.toString(), // Convert ObjectId to string for frontend
+            // Use the same image for both main and thumbnail
+            image: mainImage,
+            imageUrl: mainImage,
+            thumbnailUrl: mainImage,
+            // Ensure price is a valid number
+            price: price,
+            // Ensure stock status is set
+            inStock: product.inStock === undefined ? true : !!product.inStock
+          };
+        });
+        
         return res.json(transformedProducts);
+      }
+      
+      console.log('No products found in database');
+    }
+    
+    // If we get here, either no MongoDB connection or empty database
+    // Trigger the seeding function to populate the database
+    console.log('Attempting to seed products into the database...');
+    const seedResult = await seedProductsToMongoDB();
+    
+    if (seedResult) {
+      // Try again with the database after seeding
+      const client = await connectToMongo();
+      if (client) {
+        const db = client.db();
+        const products = await db.collection('products').find().toArray();
+        await client.close();
+        
+        if (products.length > 0) {
+          console.log(`Found ${products.length} products after seeding`);
+          return res.json(products.map(product => ({
+            ...product,
+            _id: product._id.toString()
+          })));
+        }
       }
     }
     
-    console.log('No products found in database or no MongoDB connection');
-    res.json(enhancedMockProducts);
+    // Last resort - return empty array if still no products
+    console.log('No products available, returning empty array');
+    res.json([]);
   } catch (error) {
     console.error('Error fetching products:', error);
-    // Return an empty array instead of an error object
     res.json([]);
   }
 });
@@ -1239,22 +1268,28 @@ app.get('/api/products/sale', async (req, res) => {
       name: "Wireless Earbuds", 
       price: 49.99, 
       isFeatured: false, 
-      imageUrl: `${req.protocol}://${req.get('host')}/public/sample-images/product3.jpg`,
-      thumbnailUrl: `${req.protocol}://${req.get('host')}/public/sample-images/product3.jpg`,
+      featured: false,
+      imageUrl: `/public/sample-images/product3.jpg`,
+      thumbnailUrl: `/public/sample-images/product3.jpg`,
+      image: `/public/sample-images/product3.jpg`,
       inStock: true,
       onSale: true,
-      originalPrice: "69.99"
+      originalPrice: "69.99",
+      sku: "ELEC-WE-003"
     },
     { 
       _id: "4", 
       name: "Winter Jacket", 
       price: 79.99, 
       isFeatured: false, 
-      imageUrl: `${req.protocol}://${req.get('host')}/public/sample-images/product4.jpg`,
-      thumbnailUrl: `${req.protocol}://${req.get('host')}/public/sample-images/product4.jpg`,
+      featured: false,
+      imageUrl: `/public/sample-images/product4.jpg`,
+      thumbnailUrl: `/public/sample-images/product4.jpg`,
+      image: `/public/sample-images/product4.jpg`,
       inStock: true,
       onSale: true,
-      originalPrice: "99.99"
+      originalPrice: "99.99",
+      sku: "CLO-WJ-004"
     }
   ];
   console.log('Returning mock products on sale as fallback');
@@ -1330,114 +1365,155 @@ app.get('/api/products/deals', async (req, res) => {
       name: "Smart Speaker", 
       price: 39.99, 
       isFeatured: false, 
-      imageUrl: `${req.protocol}://${req.get('host')}/public/sample-images/product1.jpg`,
-      thumbnailUrl: `${req.protocol}://${req.get('host')}/public/sample-images/product1.jpg`,
+      featured: false,
+      imageUrl: `/public/sample-images/product1.jpg`,
+      thumbnailUrl: `/public/sample-images/product1.jpg`,
+      image: `/public/sample-images/product1.jpg`,
       inStock: true,
-      isDeal: true
+      isDeal: true,
+      sku: "ELEC-SS-005"
     },
     { 
-      _id: "1", 
+      _id: "6", 
       name: "Kitchen Knife Set", 
       price: 69.99, 
       isFeatured: false, 
-      imageUrl: `${req.protocol}://${req.get('host')}/public/sample-images/product2.jpg`,
-      thumbnailUrl: `${req.protocol}://${req.get('host')}/public/sample-images/product2.jpg`,
+      featured: false,
+      imageUrl: `/public/sample-images/product2.jpg`,
+      thumbnailUrl: `/public/sample-images/product2.jpg`,
+      image: `/public/sample-images/product2.jpg`,
       inStock: true,
-      isDeal: true
+      isDeal: true,
+      sku: "HK-KS-006"
     }
   ];
   console.log('Returning mock deal products as fallback');
   res.json(mockDeals);
 });
 
-// Get products by category - this must come after other more specific routes
+// Get products by category
 app.get('/api/products/category/:category', async (req, res) => {
-  console.log('GET /api/products/category/:category');
+  const category = req.params.category;
+  
+  // Format the category (convert from URL format to display format)
+  // Example: "home-kitchen" becomes "Home & Kitchen"
+  let formattedCategory = category
+    .split('-')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+  
+  // Special case for "home-kitchen" -> "Home & Kitchen"
+  if (formattedCategory === "Home Kitchen") {
+    formattedCategory = "Home & Kitchen";
+  }
+  
+  console.log(`GET /api/products/category/${category} (formatted: ${formattedCategory})`);
   
   try {
     const client = await connectToMongo();
     
     if (client) {
       const db = client.db();
-      const category = req.params.category;
-      const products = await db.collection('products').find({ category }).toArray();
-      console.log(`Found ${products.length} products in category ${category} in database`);
       
-      // Use the same transformation logic for consistency
-      const transformedProducts = products.map(product => {
-        // Determine the proper image URL or provide a fallback
-        let mainImage = null;
-        
-        if (product.images && product.images.length > 0) {
-          mainImage = getImageUrl(product.images[0]);
-        } else if (product.image) {
-          mainImage = getImageUrl(product.image);
-        } else if (product.imageUrl) {
-          mainImage = getImageUrl(product.imageUrl);
-        } else {
-          // Use a nicer looking placeholder from Unsplash instead of placeholder.com
-          mainImage = getPlaceholderImage(product.name);
-        }
-        
-        // Ensure the price is a valid number
-        const price = typeof product.price === 'number' ? product.price : 
-                     typeof product.price === 'string' ? parseFloat(product.price) : 
-                     99.99; // Default price if undefined or invalid
-        
-        return {
-          ...product,
-          _id: product._id.toString(),
-          // Use the same image for both properties for compatibility
-          image: mainImage,
-          imageUrl: mainImage,
-          thumbnailUrl: mainImage,
-          // Ensure price is a valid number
-          price: price,
-          // Ensure stock status is set
-          inStock: product.inStock === undefined ? true : !!product.inStock,
-          // Ensure featured flag is set
-          featured: product.featured === undefined ? false : !!product.featured,
-          // Add a formatted slug for nicer URLs (if not already present)
-          slug: product.slug || product.name.toLowerCase().replace(/\s+/g, '-')
-        };
-      });
+      // Try to find by category using various patterns for flexible matching
+      const categoryPatterns = [
+        formattedCategory,                          // Exact match
+        new RegExp(`^${formattedCategory}$`, 'i'),  // Case-insensitive exact match
+        new RegExp(formattedCategory, 'i'),         // Contains the category
+        // For handling special cases like "sale" or "deals"
+        category.toLowerCase()
+      ];
+      
+      console.log(`Searching for products with category patterns: ${categoryPatterns.map(p => p.toString()).join(', ')}`);
+      
+      let products = [];
+      
+      // First attempt: exact category matches
+      products = await db.collection('products').find({
+        $or: [
+          { category: { $in: categoryPatterns.filter(p => typeof p === 'string') } },
+          { category: { $regex: categoryPatterns.filter(p => p instanceof RegExp)[0] } }
+        ]
+      }).toArray();
+      
+      // Second attempt: check for tags if category didn't match
+      if (products.length === 0) {
+        console.log(`No products found with direct category match, checking tags for: ${category}`);
+        products = await db.collection('products').find({
+          tags: { $regex: new RegExp(category.replace(/[-]/g, '|'), 'i') }
+        }).toArray();
+      }
+      
+      // For "sale" category, look for onSale flag
+      if (category === "sale" && products.length === 0) {
+        console.log('Checking for products with onSale flag');
+        products = await db.collection('products').find({
+          onSale: true
+        }).toArray();
+      }
+      
+      // For "deals" category, look for isDeal flag
+      if (category === "deals" && products.length === 0) {
+        console.log('Checking for products with isDeal flag');
+        products = await db.collection('products').find({
+          isDeal: true
+        }).toArray();
+      }
       
       await client.close();
       
-      if (transformedProducts.length > 0) {
-        return res.json(transformedProducts);
+      if (products.length > 0) {
+        console.log(`Found ${products.length} products in database for category: ${formattedCategory}`);
+        
+        // Transform the products to ensure consistent object structure
+        const transformedProducts = products.map(product => {
+          // Determine the proper image URL
+          let mainImage = null;
+          
+          if (product.images && product.images.length > 0) {
+            mainImage = getImageUrl(product.images[0]);
+          } else if (product.image) {
+            mainImage = getImageUrl(product.image);
+          } else if (product.imageUrl) {
+            mainImage = getImageUrl(product.imageUrl);
+          } else {
+            mainImage = getPlaceholderImage(product.name);
+          }
+          
+          // Ensure the price is a valid number
+          const price = typeof product.price === 'number' ? product.price : 
+                       typeof product.price === 'string' ? parseFloat(product.price) : 
+                       99.99; // Default price if undefined or invalid
+          
+          return {
+            ...product,
+            _id: product._id.toString(), // Convert ObjectId to string for frontend
+            // Use the same image for both main and thumbnail
+            image: mainImage,
+            imageUrl: mainImage,
+            thumbnailUrl: mainImage,
+            // Ensure price is a valid number
+            price: price,
+            // Ensure stock status is set
+            inStock: product.inStock === undefined ? true : !!product.inStock
+          };
+        });
+        
+        res.json(transformedProducts);
+        return;
       }
-      // If no products found in the category, fall through to mock data
+      
+      console.log(`No products found in category: ${formattedCategory}`);
     }
+    
+    // If we get here, either no MongoDB connection or no products found
+    console.log(`Returning empty array for category: ${formattedCategory}`);
+    res.json([]);
   } catch (error) {
-    console.error('Error fetching products by category:', error.message);
+    console.error(`Error fetching products for category ${formattedCategory}:`, error);
+    // Even on error, return an empty array instead of an error object
+    res.json([]);
   }
-  
-  // Fallback products by category (with price explicitly as number and thumbnails)
-  const mockCategory = [
-    { 
-      _id: "1", // Using numeric IDs that match what MongoDB would generate
-      name: "Coffee Maker", 
-      price: 79.99, 
-      category: "Home & Kitchen",
-      isFeatured: false, 
-      imageUrl: `${req.protocol}://${req.get('host')}/public/sample-images/product1.jpg`,
-      thumbnailUrl: `${req.protocol}://${req.get('host')}/public/sample-images/product1.jpg`,
-      inStock: true
-    },
-    { 
-      _id: "2", 
-      name: "Face Serum", 
-      price: 24.99, 
-      category: "Beauty",
-      isFeatured: false, 
-      imageUrl: `${req.protocol}://${req.get('host')}/public/sample-images/product2.jpg`,
-      thumbnailUrl: `${req.protocol}://${req.get('host')}/public/sample-images/product2.jpg`,
-      inStock: true
-    }
-  ];
-  console.log('Returning mock products by category as fallback');
-  res.json(mockCategory);
 });
 
 // Get product by ID - this must come after other routes with specific paths
@@ -1490,7 +1566,7 @@ app.get('/api/products/:id', async (req, res) => {
       if (!product) {
         console.log(`Looking for product with name: ${id}`);
         product = await db.collection('products').findOne({ 
-          name: { $regex: new RegExp('^' + id + '$', 'i') }
+          name: { $regex: new RegExp('^' + id.replace(/-/g, ' ') + '$', 'i') }
         });
       }
       
@@ -1540,16 +1616,37 @@ app.get('/api/products/:id', async (req, res) => {
     // If we get here, no product was found - check the mock products
     console.log(`Product ${id} not found in database, checking mockProducts`);
     
+    // Create an array with all our mock products for easier searching
+    const allMockProducts = [...mockCategory, ...mockSale, ...mockDeals];
+    
     // Check our mock products by ID and return if found
-    const mockProduct = [...mockCategory, ...mockSale, ...mockDeals].find(p => 
+    const mockProduct = allMockProducts.find(p => 
       p._id === id || 
+      p.id === id || 
       p.slug === id || 
-      p.name.toLowerCase() === id.toLowerCase()
+      p.name?.toLowerCase()?.replace(/\s+/g, '-') === id.toLowerCase() ||
+      p.name?.toLowerCase() === id.toLowerCase().replace(/-/g, ' ')
     );
     
     if (mockProduct) {
       console.log(`Found matching mock product: ${mockProduct.name}`);
-      return res.json(mockProduct);
+      
+      // Make sure we serve complete images
+      const baseUrl = `${req.protocol}://${req.get('host')}`;
+      let imageUrl = mockProduct.imageUrl;
+      
+      // If the image path is relative, make it absolute
+      if (imageUrl && !imageUrl.startsWith('http')) {
+        imageUrl = `${baseUrl}${imageUrl}`;
+      }
+      
+      // Return with updated image URLs
+      return res.json({
+        ...mockProduct,
+        imageUrl: imageUrl,
+        thumbnailUrl: imageUrl,
+        image: imageUrl
+      });
     }
     
     // Not found in DB or mocks
@@ -2541,6 +2638,13 @@ app.get('/api/admin/reseed-products', async (req, res) => {
 });
 
 // Start the server
-app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, async () => {
+  console.log(`Server running on port ${PORT}`);
+  
+  // Initialize the sample images directory
+  await seedSampleImages();
+  
+  // Initialize the database with required products
+  await seedProductsToMongoDB();
 }); 
